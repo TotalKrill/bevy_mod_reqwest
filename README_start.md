@@ -8,4 +8,4 @@ This crate helps when trying to use reqwest with bevy, without having to deal wi
 
 ## Example
 
-```
+``` rust

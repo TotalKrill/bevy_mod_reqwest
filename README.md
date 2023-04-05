@@ -8,7 +8,7 @@ This crate helps when trying to use reqwest with bevy, without having to deal wi
 
 ## Example
 
-```
+``` rust
 use bevy::prelude::*;
 use bevy_mod_reqwest::*;
 
