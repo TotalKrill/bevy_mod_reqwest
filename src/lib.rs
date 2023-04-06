@@ -126,7 +126,7 @@ impl ReqwestPlugin {
                 commands
                     .entity(entity)
                     .insert(ReqwestBytesResult(result))
-                    .remove::<ReqwestRequest>();
+                    .remove::<ReqwestInflight>();
             }
 
             #[cfg(not(target_family = "wasm"))]
@@ -135,7 +135,7 @@ impl ReqwestPlugin {
                 commands
                     .entity(entity)
                     .insert(ReqwestBytesResult(result))
-                    .remove::<ReqwestRequest>();
+                    .remove::<ReqwestInflight>();
             }
         }
     }

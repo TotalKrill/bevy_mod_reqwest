@@ -1,9 +1,10 @@
-use bevy::prelude::*;
+use bevy::{log::LogPlugin, prelude::*};
 use bevy_mod_reqwest::*;
 
 fn main() {
     App::new()
         .add_plugins(MinimalPlugins)
+        .add_plugin(LogPlugin::default())
         .add_plugin(ReqwestPlugin)
         .add_system(send_requests)
         .add_system(handle_responses)
