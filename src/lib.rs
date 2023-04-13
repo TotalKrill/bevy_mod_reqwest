@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use bevy::tasks::AsyncComputeTaskPool;
+use bevy::{log, prelude::*};
 pub use reqwest;
 
 #[cfg(target_family = "wasm")]
@@ -20,6 +20,12 @@ impl Default for ReqwestClient {
 #[derive(Component, Deref)]
 pub struct ReqwestRequest(pub Option<reqwest::Request>);
 
+impl ReqwestRequest {
+    pub fn new(request: reqwest::Request) -> Self {
+        Self(Some(request))
+    }
+}
+
 impl Into<ReqwestRequest> for reqwest::Request {
     fn into(self) -> ReqwestRequest {
         ReqwestRequest(Some(self))
@@ -35,7 +41,7 @@ struct ReqwestInflight(pub Receiver<reqwest::Result<bytes::Bytes>>);
 #[derive(Component, Deref)]
 struct ReqwestInflight(pub Task<reqwest::Result<bytes::Bytes>>);
 
-#[derive(Component, Deref)]
+#[derive(Component, Deref, Debug)]
 pub struct ReqwestBytesResult(pub reqwest::Result<bytes::Bytes>);
 
 impl ReqwestBytesResult {
@@ -49,7 +55,13 @@ impl ReqwestBytesResult {
         Some(self.as_str()?.into())
     }
     pub fn deserialize_json<'de, T: serde::Deserialize<'de>>(&'de mut self) -> Option<T> {
-        serde_json::from_str(self.as_str()?).ok()
+        match serde_json::from_str(self.as_str()?) {
+            Ok(json) => Some(json),
+            Err(e) => {
+                log::error!("failed to deserialize: {e:?}");
+                None
+            }
+        }
     }
 }
 
