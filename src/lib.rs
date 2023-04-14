@@ -34,12 +34,12 @@ impl Into<ReqwestRequest> for reqwest::Request {
 
 #[cfg(target_family = "wasm")]
 #[derive(Component, Deref)]
-struct ReqwestInflight(pub Receiver<reqwest::Result<bytes::Bytes>>);
+pub struct ReqwestInflight(Receiver<reqwest::Result<bytes::Bytes>>);
 
-// Dont touch these, its just to poll once every request
+/// Dont touch these, its just to poll once every request
 #[cfg(not(target_family = "wasm"))]
 #[derive(Component, Deref)]
-struct ReqwestInflight(pub Task<reqwest::Result<bytes::Bytes>>);
+pub struct ReqwestInflight(Task<reqwest::Result<bytes::Bytes>>);
 
 #[derive(Component, Deref, Debug)]
 pub struct ReqwestBytesResult(pub reqwest::Result<bytes::Bytes>);
