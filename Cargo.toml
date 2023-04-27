@@ -9,13 +9,17 @@ repository = "https://github.com/TotalKrill/bevy_mod_reqwest.git"
 license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = ["default-tls"]
+default-tls = ["reqwest/default-tls"]
+rustls-tls = ["reqwest/rustls-tls"]
 
 [dependencies]
 async-compat = "0.2.1"
 bevy = { version = "0.10.1", default-features = false }
 bytes = "=1.1.0"
 futures-lite = "1.12.0"
-reqwest = "0.11.16"
+reqwest = { version = "0.11.16", default-features = false }
 serde = { version = "1.0.159", features = ["derive"] }
 serde_json = "1.0.95"
 [target.'cfg(target_arch = "wasm32")'.dependencies]
