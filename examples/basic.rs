@@ -24,7 +24,7 @@ fn send_requests(mut commands: Commands, time: Res<Time>, mut timer: ResMut<ReqT
     if timer.0.just_finished() {
         if let Ok(url) = "https://www.boredapi.com/api/activity".try_into() {
             let req = reqwest::Request::new(reqwest::Method::GET, url);
-            let req = ReqwestRequest(Some(req));
+            let req = ReqwestRequest::new(req);
             commands.spawn(req);
         }
     }
