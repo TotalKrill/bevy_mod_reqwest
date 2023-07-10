@@ -71,8 +71,8 @@ impl Plugin for ReqwestPlugin {
         if !app.world.contains_resource::<ReqwestClient>() {
             app.init_resource::<ReqwestClient>();
         }
-        app.add_system(Self::start_handling_requests);
-        app.add_system(Self::poll_inflight_requests_to_bytes);
+        app.add_systems(Update, Self::start_handling_requests);
+        app.add_systems(Update, Self::poll_inflight_requests_to_bytes);
     }
 }
 
