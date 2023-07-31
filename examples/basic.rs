@@ -3,8 +3,11 @@ use bevy_mod_reqwest::*;
 
 fn main() {
     App::new()
-        .add_plugins((MinimalPlugins, LogPlugin::default(), ReqwestPlugin))
-        .add_systems(Update, (send_requests, handle_responses,))
+        .add_plugins(MinimalPlugins)
+        .add_plugins(LogPlugin::default())
+        .add_plugins(ReqwestPlugin)
+        .add_systems(Update, send_requests)
+        .add_systems(Update, handle_responses)
         .insert_resource(ReqTimer(Timer::new(
             std::time::Duration::from_secs(1),
             TimerMode::Repeating,

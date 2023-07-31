@@ -2,10 +2,14 @@ use std::ops::DerefMut;
 
 use bevy::tasks::AsyncComputeTaskPool;
 use bevy::{log, prelude::*};
+use bevy_eventlistener::prelude::*;
 pub use reqwest;
 
 #[cfg(target_family = "wasm")]
 use crossbeam_channel::{bounded, Receiver};
+
+pub use reqwest::header::HeaderMap;
+pub use reqwest::{StatusCode, Version};
 
 #[cfg(not(target_family = "wasm"))]
 use {bevy::tasks::Task, futures_lite::future};
@@ -46,22 +50,130 @@ impl Into<ReqwestRequest> for reqwest::Request {
     }
 }
 
-#[cfg(target_family = "wasm")]
-#[derive(Component, Deref)]
-pub struct ReqwestInflight(Receiver<reqwest::Result<bytes::Bytes>>);
+type Resp = (reqwest::Result<bytes::Bytes>, Option<Parts>);
 
 /// Dont touch these, its just to poll once every request
-#[cfg(not(target_family = "wasm"))]
-#[derive(Component, Deref)]
-pub struct ReqwestInflight(Task<reqwest::Result<bytes::Bytes>>);
+#[derive(Component)]
+pub struct ReqwestInflight {
+    #[cfg(not(target_family = "wasm"))]
+    res: Task<Resp>,
 
-#[derive(Component, Deref, Debug)]
-pub struct ReqwestBytesResult(pub reqwest::Result<bytes::Bytes>);
+    #[cfg(target_family = "wasm")]
+    res: Receiver<Resp>,
+}
+
+impl ReqwestInflight {
+    fn poll(&mut self) -> Option<Resp> {
+        #[cfg(target_family = "wasm")]
+        if let Ok(v) = self.res.try_recv() {
+            Some(v)
+        } else {
+            None
+        }
+
+        #[cfg(not(target_family = "wasm"))]
+        if let Some(v) = future::block_on(future::poll_once(&mut self.res)) {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    #[cfg(target_family = "wasm")]
+    pub(crate) fn new(res: Receiver<Resp>) -> Self {
+        Self { res }
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    pub(crate) fn new(res: Task<Resp>) -> Self {
+        Self { res }
+    }
+}
+
+#[derive(Component, Debug)]
+pub struct ReqwestBytesResult {
+    /// the body of the response
+    pub(crate) body: reqwest::Result<bytes::Bytes>,
+    /// Parts
+    pub(crate) parts: Option<Parts>,
+}
+
+#[derive(Component, Debug)]
+/// information about the response
+struct Parts {
+    /// the `StatusCode`
+    pub(crate) status: StatusCode,
+
+    /// the headers of the response
+    pub(crate) headers: HeaderMap,
+}
+
+#[derive(Clone, Event, EntityEvent)]
+pub struct ReqResponse {
+    #[target]
+    target: Entity,
+    bytes: bytes::Bytes,
+    status: StatusCode,
+    headers: HeaderMap,
+}
+
+impl ReqResponse {
+    pub fn body(&self) -> &bytes::Bytes {
+        &self.bytes
+    }
+
+    pub fn as_str(&self) -> Option<&str> {
+        std::str::from_utf8(&self.bytes).ok()
+    }
+    pub fn as_string(&mut self) -> Option<String> {
+        Some(self.as_str()?.into())
+    }
+    pub fn deserialize_json<'de, T: serde::Deserialize<'de>>(&'de mut self) -> Option<T> {
+        match serde_json::from_str(self.as_str()?) {
+            Ok(json) => Some(json),
+            Err(e) => {
+                log::error!("failed to deserialize: {e:?}");
+                None
+            }
+        }
+    }
+    /// Get the `StatusCode` of this `Response`.
+    #[inline]
+    pub fn status(&self) -> StatusCode {
+        self.status
+    }
+
+    /// Get the `Headers` of this `Response`.
+    #[inline]
+    pub fn headers(&self) -> &HeaderMap {
+        &self.headers
+    }
+}
+
+impl ReqResponse {
+    pub(crate) fn new(
+        target: Entity,
+        bytes: bytes::Bytes,
+        status: StatusCode,
+        headers: HeaderMap,
+    ) -> Self {
+        Self {
+            target,
+            bytes,
+            status,
+            headers,
+        }
+    }
+}
 
 impl ReqwestBytesResult {
+    pub fn body(&self) -> &reqwest::Result<bytes::Bytes> {
+        &self.body
+    }
+
     pub fn as_str(&self) -> Option<&str> {
-        match &self.0 {
-            Ok(string) => Some(std::str::from_utf8(string).ok()?),
+        match &self.body {
+            Ok(string) => Some(std::str::from_utf8(&string).ok()?),
             Err(_) => None,
         }
     }
@@ -92,17 +204,36 @@ impl ReqwestBytesResult {
             }
         }
     }
+
+    /// Get the `StatusCode` of this `Response`.
+    #[inline]
+    pub fn status(&self) -> Option<StatusCode> {
+        match &self.parts {
+            Some(parts) => Some(parts.status),
+            None => None,
+        }
+    }
+
+    /// Get the `Headers` of this `Response`.
+    #[inline]
+    pub fn headers(&self) -> Option<&HeaderMap> {
+        match &self.parts {
+            Some(parts) => Some(&parts.headers),
+            None => None,
+        }
+    }
 }
 
 pub struct ReqwestPlugin;
 impl Plugin for ReqwestPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ReqwestClient>();
-        app.add_systems(
-            Update,
-            (Self::add_name_to_requests, Self::start_handling_requests).chain(),
-        );
+        if !app.world.contains_resource::<ReqwestClient>() {
+            app.init_resource::<ReqwestClient>();
+        }
+        app.add_plugins(EventListenerPlugin::<ReqResponse>::default());
+        app.add_systems(Update, Self::start_handling_requests);
         app.add_systems(Update, Self::poll_inflight_requests_to_bytes);
+        app.add_systems(Update, Self::generate_events);
     }
 }
 
@@ -123,13 +254,21 @@ impl ReqwestPlugin {
                 // wasm implementation
                 #[cfg(target_family = "wasm")]
                 let (tx, task) = bounded(1);
+
                 #[cfg(target_family = "wasm")]
                 thread_pool
                     .spawn(async move {
                         let r = client.execute(request).await;
                         let r = match r {
-                            Ok(res) => res.bytes().await,
-                            Err(r) => Err(r),
+                            Ok(res) => {
+                                let parts = Parts {
+                                    status: res.status(),
+                                    // version: res.version(),
+                                    headers: res.headers().clone(),
+                                };
+                                (res.bytes().await, Some(parts))
+                            }
+                            Err(r) => (Err(r), None),
                         };
                         tx.send(r).ok();
                     })
@@ -141,14 +280,25 @@ impl ReqwestPlugin {
                     thread_pool.spawn(async move {
                         #[cfg(not(target_family = "wasm"))]
                         let r = async_compat::Compat::new(async {
-                            client.execute(request).await?.bytes().await
+                            let p = client.execute(request).await;
+                            match p {
+                                Ok(response) => {
+                                    let parts = Parts {
+                                        status: response.status(),
+                                        // version: response.version(),
+                                        headers: response.headers().clone(),
+                                    };
+                                    (response.bytes().await, Some(parts))
+                                }
+                                Err(e) => (Err(e), None),
+                            }
                         })
                         .await;
                         r
                     })
                 };
                 // put it as a component to be polled, and remove the request, it has been handled
-                commands.entity(entity).insert(ReqwestInflight(task));
+                commands.entity(entity).insert(ReqwestInflight::new(task));
                 commands.entity(entity).remove::<ReqwestRequest>();
             }
         }
@@ -161,22 +311,15 @@ impl ReqwestPlugin {
     ) {
         for (entity, mut request) in requests.iter_mut() {
             bevy::log::debug!("polling: {entity:?}");
-
-            #[cfg(target_family = "wasm")]
-            if let Ok(result) = request.0.try_recv() {
+            if let Some((result, parts)) = request.poll() {
                 // move the result over to a new component
+                let reqres = ReqwestBytesResult {
+                    body: result,
+                    parts,
+                };
                 commands
                     .entity(entity)
-                    .insert(ReqwestBytesResult(result))
-                    .remove::<ReqwestInflight>();
-            }
-
-            #[cfg(not(target_family = "wasm"))]
-            if let Some(result) = future::block_on(future::poll_once(&mut request.0)) {
-                // move the result over to a new component
-                commands
-                    .entity(entity)
-                    .insert(ReqwestBytesResult(result))
+                    .insert(reqres)
                     .remove::<ReqwestInflight>();
             }
         }
@@ -197,6 +340,26 @@ impl ReqwestPlugin {
             let url = request.url().path().to_string();
 
             commands.entity(entity).insert(Name::new(url));
+        }
+    }
+    fn generate_events(
+        mut commands: Commands,
+        mut ew: EventWriter<ReqResponse>,
+        results: Query<(Entity, &ReqwestBytesResult)>,
+    ) {
+        for (e, res) in results.iter() {
+            if let Ok(body) = res.body() {
+                // if the response is ok, the other values are already gotten, its safe to unwrap
+                ew.send(ReqResponse::new(
+                    e.clone(),
+                    body.clone(),
+                    res.status().unwrap(),
+                    res.headers().unwrap().clone(),
+                ));
+            }
+            if let Some(mut ec) = commands.get_entity(e) {
+                ec.remove::<ReqwestBytesResult>();
+            }
         }
     }
 }
