@@ -4,47 +4,61 @@ This crate helps when trying to use reqwest with bevy, without having to deal wi
 ( only tested on x86_64 and wasm for now)
 
 
-
-
 ## Example
 
 ``` rust
-use bevy::{log::LogPlugin, prelude::*};
+use std::time::Duration;
+
+use bevy::{
+    log::{info, LogPlugin},
+    prelude::*,
+    time::common_conditions::on_timer,
+};
+use bevy_eventlistener::prelude::*;
 use bevy_mod_reqwest::*;
+use serde::Deserialize;
+
+#[derive(Deserialize, Debug)]
+pub struct Bored {
+    pub activity: String,
+    pub r#type: String,
+    pub participants: f32,
+    pub accessibility: f32,
+    pub price: f32,
+    pub link: String,
+}
 
 fn main() {
     App::new()
-        .add_plugins((MinimalPlugins, LogPlugin::default(), ReqwestPlugin))
-        .add_systems(Update, (send_requests, handle_responses,))
-        .insert_resource(ReqTimer(Timer::new(
-            std::time::Duration::from_secs(1),
-            TimerMode::Repeating,
-        )))
+        .add_plugins(MinimalPlugins)
+        .add_plugins(ReqwestPlugin)
+        .add_plugins(LogPlugin::default())
+        .add_systems(
+            Update,
+            send_requests.run_if(on_timer(Duration::from_secs(4))),
+        )
         .run();
 }
 
-#[derive(Resource)]
-struct ReqTimer(pub Timer);
+fn send_requests(mut commands: Commands) {
+    let url = "https://www.boredapi.com/api/activity".try_into().unwrap();
+    // let url = "https://www.thisaddressdoesnotexist.com"
+    //     .try_into()
+    //     .unwrap();
 
-fn send_requests(mut commands: Commands, time: Res<Time>, mut timer: ResMut<ReqTimer>) {
-    timer.0.tick(time.delta());
-
-    if timer.0.just_finished() {
-        if let Ok(url) = "https://www.boredapi.com/api/activity".try_into() {
-            let req = reqwest::Request::new(reqwest::Method::GET, url);
-            let req = ReqwestRequest::new(req);
-            commands.spawn(req);
-        }
-    }
-}
-
-fn handle_responses(mut commands: Commands, results: Query<(Entity, &ReqwestBytesResult)>) {
-    for (e, res) in results.iter() {
-        let string = res.as_str().unwrap();
-        bevy::log::info!("{string}");
-
-        // Done with this entity
-        commands.entity(e).despawn_recursive();
-    }
+    commands.spawn((
+        ReqRequest::new(reqwest::Request::new(reqwest::Method::GET, url)),
+        On::<ReqResponse>::run(
+            |mut commands: Commands, req: Listener<ReqResponse>, q: Query<Entity>| {
+                if let Ok(e) = q.get(req.listener()) {
+                    commands.entity(e).despawn_recursive();
+                    // we got resp
+                    if let Some(bored) = req.deserialize_json::<Bored>() {
+                        info!("Activity: {}", bored.activity);
+                    }
+                }
+            },
+        ),
+    ));
 }
 ```
