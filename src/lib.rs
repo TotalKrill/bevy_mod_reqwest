@@ -3,6 +3,8 @@ use std::ops::DerefMut;
 use bevy::tasks::AsyncComputeTaskPool;
 use bevy::{log, prelude::*};
 use bevy_eventlistener::prelude::*;
+
+pub use bevy_eventlistener::prelude::{Listener, On};
 pub use reqwest;
 
 #[cfg(target_family = "wasm")]
