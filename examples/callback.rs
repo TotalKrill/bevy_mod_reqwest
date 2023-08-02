@@ -35,7 +35,7 @@ fn send_requests(mut commands: Commands) {
     let url = "https://www.boredapi.com/api/activity".try_into().unwrap();
 
     commands.spawn((
-        ReqwestRequest::new(reqwest::Request::new(reqwest::Method::GET, url)),
+        ReqRequest::new(reqwest::Request::new(reqwest::Method::GET, url)),
         On::<ReqResponse>::run(
             |mut commands: Commands, req: Listener<ReqResponse>, q: Query<Entity>| {
                 if let Ok(e) = q.get(req.listener()) {

@@ -36,17 +36,17 @@ impl DerefMut for ReqwestClient {
 
 /// we have to use an option to be able to ".take()" later
 #[derive(Component, Deref)]
-pub struct ReqwestRequest(pub Option<reqwest::Request>);
+pub struct ReqRequest(pub Option<reqwest::Request>);
 
-impl ReqwestRequest {
+impl ReqRequest {
     pub fn new(request: reqwest::Request) -> Self {
         Self(Some(request))
     }
 }
 
-impl Into<ReqwestRequest> for reqwest::Request {
-    fn into(self) -> ReqwestRequest {
-        ReqwestRequest(Some(self))
+impl Into<ReqRequest> for reqwest::Request {
+    fn into(self) -> ReqRequest {
+        ReqRequest(Some(self))
     }
 }
 
@@ -54,7 +54,7 @@ type Resp = (reqwest::Result<bytes::Bytes>, Option<Parts>);
 
 /// Dont touch these, its just to poll once every request
 #[derive(Component)]
-pub struct ReqwestInflight {
+struct ReqwestInflight {
     #[cfg(not(target_family = "wasm"))]
     res: Task<Resp>,
 
@@ -91,7 +91,7 @@ impl ReqwestInflight {
 }
 
 #[derive(Component, Debug)]
-pub struct ReqwestBytesResult {
+struct ReqwestBytesResult {
     /// the body of the response
     pub(crate) body: reqwest::Result<bytes::Bytes>,
     /// Parts
@@ -242,7 +242,7 @@ impl ReqwestPlugin {
     fn start_handling_requests(
         mut commands: Commands,
         http_client: ResMut<ReqwestClient>,
-        mut requests: Query<(Entity, &mut ReqwestRequest), Added<ReqwestRequest>>,
+        mut requests: Query<(Entity, &mut ReqRequest), Added<ReqRequest>>,
     ) {
         let thread_pool = AsyncComputeTaskPool::get();
         for (entity, mut request) in requests.iter_mut() {
@@ -282,13 +282,13 @@ impl ReqwestPlugin {
                         let r = async_compat::Compat::new(async {
                             let p = client.execute(request).await;
                             match p {
-                                Ok(response) => {
+                                Ok(res) => {
                                     let parts = Parts {
-                                        status: response.status(),
+                                        status: res.status(),
                                         // version: response.version(),
-                                        headers: response.headers().clone(),
+                                        headers: res.headers().clone(),
                                     };
-                                    (response.bytes().await, Some(parts))
+                                    (res.bytes().await, Some(parts))
                                 }
                                 Err(e) => (Err(e), None),
                             }
@@ -299,7 +299,7 @@ impl ReqwestPlugin {
                 };
                 // put it as a component to be polled, and remove the request, it has been handled
                 commands.entity(entity).insert(ReqwestInflight::new(task));
-                commands.entity(entity).remove::<ReqwestRequest>();
+                commands.entity(entity).remove::<ReqRequest>();
             }
         }
     }
@@ -327,10 +327,7 @@ impl ReqwestPlugin {
 
     fn add_name_to_requests(
         mut commands: Commands,
-        requests_without_name: Query<
-            (Entity, &ReqwestRequest),
-            (Added<ReqwestRequest>, Without<Name>),
-        >,
+        requests_without_name: Query<(Entity, &ReqRequest), (Added<ReqRequest>, Without<Name>)>,
     ) {
         for (entity, request) in requests_without_name.iter() {
             let Some(request) = request.as_ref() else {
