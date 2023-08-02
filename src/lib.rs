@@ -117,6 +117,17 @@ pub struct ReqResponse {
     headers: HeaderMap,
 }
 
+// #[derive(Clone, Event, EntityEvent)]
+// pub struct ReqError {
+//     #[target]
+//     target: Entity,
+// }
+// impl ReqError {
+//     fn new(target: Entity) -> ReqError {
+//         Self { target }
+//     }
+// }
+
 impl ReqResponse {
     pub fn body(&self) -> &bytes::Bytes {
         &self.bytes
@@ -231,6 +242,7 @@ impl Plugin for ReqwestPlugin {
             app.init_resource::<ReqwestClient>();
         }
         app.add_plugins(EventListenerPlugin::<ReqResponse>::default());
+        // app.add_plugins(EventListenerPlugin::<ReqError>::default());
         app.add_systems(Update, Self::start_handling_requests);
         app.add_systems(Update, Self::poll_inflight_requests_to_bytes);
         app.add_systems(Update, Self::generate_events);
@@ -341,18 +353,26 @@ impl ReqwestPlugin {
     }
     fn generate_events(
         mut commands: Commands,
-        mut ew: EventWriter<ReqResponse>,
+        mut ew_ok: EventWriter<ReqResponse>,
+        // mut ew_err: EventWriter<ReqError>,
         results: Query<(Entity, &ReqwestBytesResult)>,
     ) {
         for (e, res) in results.iter() {
-            if let Ok(body) = res.body() {
-                // if the response is ok, the other values are already gotten, its safe to unwrap
-                ew.send(ReqResponse::new(
-                    e.clone(),
-                    body.clone(),
-                    res.status().unwrap(),
-                    res.headers().unwrap().clone(),
-                ));
+            match res.body() {
+                Ok(body) => {
+                    // if the response is ok, the other values are already gotten, its safe to unwrap
+                    ew_ok.send(ReqResponse::new(
+                        e.clone(),
+                        body.clone(),
+                        res.status().unwrap(),
+                        res.headers().unwrap().clone(),
+                    ));
+                }
+                Err(err) => {
+                    bevy::log::error!("{err:?}");
+                    //TODO: figure out a way to include error information in a good way and what are errors
+                    // ew_err.send(ReqError::new(e.clone()));
+                }
             }
             if let Some(mut ec) = commands.get_entity(e) {
                 ec.remove::<ReqwestBytesResult>();

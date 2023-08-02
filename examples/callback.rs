@@ -33,6 +33,9 @@ fn main() {
 
 fn send_requests(mut commands: Commands) {
     let url = "https://www.boredapi.com/api/activity".try_into().unwrap();
+    // let url = "https://www.thisaddressdoesnotexist.com"
+    //     .try_into()
+    //     .unwrap();
 
     commands.spawn((
         ReqRequest::new(reqwest::Request::new(reqwest::Method::GET, url)),
