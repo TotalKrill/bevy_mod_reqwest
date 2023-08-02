@@ -125,10 +125,10 @@ impl ReqResponse {
     pub fn as_str(&self) -> Option<&str> {
         std::str::from_utf8(&self.bytes).ok()
     }
-    pub fn as_string(&mut self) -> Option<String> {
+    pub fn as_string(&self) -> Option<String> {
         Some(self.as_str()?.into())
     }
-    pub fn deserialize_json<'de, T: serde::Deserialize<'de>>(&'de mut self) -> Option<T> {
+    pub fn deserialize_json<'de, T: serde::Deserialize<'de>>(&'de self) -> Option<T> {
         match serde_json::from_str(self.as_str()?) {
             Ok(json) => Some(json),
             Err(e) => {
