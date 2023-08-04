@@ -38,6 +38,7 @@ impl DerefMut for ReqwestClient {
 
 /// we have to use an option to be able to ".take()" later
 #[derive(Component, Deref)]
+#[component(storage = "SparseSet")]
 pub struct ReqRequest(pub Option<reqwest::Request>);
 
 impl ReqRequest {
@@ -56,6 +57,7 @@ type Resp = (reqwest::Result<bytes::Bytes>, Option<Parts>);
 
 /// Dont touch these, its just to poll once every request
 #[derive(Component)]
+#[component(storage = "SparseSet")]
 struct ReqwestInflight {
     #[cfg(not(target_family = "wasm"))]
     res: Task<Resp>,
@@ -90,14 +92,6 @@ impl ReqwestInflight {
     pub(crate) fn new(res: Task<Resp>) -> Self {
         Self { res }
     }
-}
-
-#[derive(Component, Debug)]
-struct ReqwestBytesResult {
-    /// the body of the response
-    pub(crate) body: reqwest::Result<bytes::Bytes>,
-    /// Parts
-    pub(crate) parts: Option<Parts>,
 }
 
 #[derive(Component, Debug)]
@@ -247,7 +241,6 @@ impl Plugin for ReqwestPlugin {
         // app.add_plugins(EventListenerPlugin::<ReqError>::default());
         app.add_systems(Update, Self::start_handling_requests);
         app.add_systems(Update, Self::poll_inflight_requests_to_bytes);
-        app.add_systems(Update, Self::generate_events);
     }
 }
 
@@ -277,7 +270,6 @@ impl ReqwestPlugin {
                             Ok(res) => {
                                 let parts = Parts {
                                     status: res.status(),
-                                    // version: res.version(),
                                     headers: res.headers().clone(),
                                 };
                                 (res.bytes().await, Some(parts))
@@ -299,7 +291,6 @@ impl ReqwestPlugin {
                                 Ok(res) => {
                                     let parts = Parts {
                                         status: res.status(),
-                                        // version: response.version(),
                                         headers: res.headers().clone(),
                                     };
                                     (res.bytes().await, Some(parts))
@@ -321,24 +312,32 @@ impl ReqwestPlugin {
     fn poll_inflight_requests_to_bytes(
         mut commands: Commands,
         // Very important to have the Without, otherwise we get task failure upon completed task
-        mut requests: Query<(Entity, &mut ReqwestInflight), Without<ReqwestBytesResult>>,
+        mut requests: Query<(Entity, &mut ReqwestInflight)>,
+        mut ew_ok: EventWriter<ReqResponse>,
     ) {
         for (entity, mut request) in requests.iter_mut() {
             bevy::log::debug!("polling: {entity:?}");
             if let Some((result, parts)) = request.poll() {
-                // move the result over to a new component
-                let reqres = ReqwestBytesResult {
-                    body: result,
-                    parts,
-                };
-                commands
-                    .entity(entity)
-                    .insert(reqres)
-                    .remove::<ReqwestInflight>();
+                let parts = parts.unwrap();
+                match result {
+                    Ok(body) => {
+                        // if the response is ok, the other values are already gotten, its safe to unwrap
+                        ew_ok.send(ReqResponse::new(
+                            entity.clone(),
+                            body.clone(),
+                            parts.status,
+                            parts.headers,
+                        ));
+                    }
+                    Err(err) => {
+                        bevy::log::error!("{err:?}");
+                        //TODO: figure out a way to include error information in a good way and what are errors
+                        // ew_err.send(ReqError::new(e.clone()));
+                    }
+                }
             }
         }
     }
-
     fn add_name_to_requests(
         mut commands: Commands,
         requests_without_name: Query<(Entity, &ReqRequest), (Added<ReqRequest>, Without<Name>)>,
