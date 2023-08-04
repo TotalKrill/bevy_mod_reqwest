@@ -239,7 +239,7 @@ impl Plugin for ReqwestPlugin {
         }
         app.add_plugins(EventListenerPlugin::<ReqResponse>::default());
         // app.add_plugins(EventListenerPlugin::<ReqError>::default());
-        app.add_systems(Update, Self::start_handling_requests);
+        app.add_systems(PreUpdate, Self::start_handling_requests);
         app.add_systems(Update, Self::poll_inflight_requests_to_bytes);
     }
 }
