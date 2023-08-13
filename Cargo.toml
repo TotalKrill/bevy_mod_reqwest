@@ -1,7 +1,7 @@
 [package]
 name = "bevy_mod_reqwest"
 description = "use reqwest with the bevy runtime in the same way on both web and native"
-version = "0.11.0"
+version = "0.11.1"
 edition = "2021"
 readme = "README.md"
 authors = ["Kristoffer Ödmark <kristoffer.odmark90@gmail.com>"]
@@ -13,6 +13,7 @@ license = "MIT"
 default = ["default-tls"]
 default-tls = ["reqwest/default-tls"]
 rustls-tls = ["reqwest/rustls-tls"]
+msgpack = ["rmp-serde"]
 
 [dependencies]
 async-compat = "0.2.1"
@@ -20,6 +21,7 @@ bevy = "0.11.0"
 bytes = "=1.1.0"
 futures-lite = "1.12.0"
 reqwest = { version = "0.11.16", default-features = false }
+rmp-serde = {version = "1.1.2", optional = true}
 serde = { version = "1.0.159", features = ["derive"] }
 serde_json = "1.0.95"
 [target.'cfg(target_arch = "wasm32")'.dependencies]

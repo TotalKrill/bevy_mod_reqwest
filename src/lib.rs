@@ -54,7 +54,22 @@ impl ReqwestBytesResult {
     pub fn as_string(&mut self) -> Option<String> {
         Some(self.as_str()?.into())
     }
-    pub fn deserialize_json<'de, T: serde::Deserialize<'de>>(&'de mut self) -> Option<T> {
+
+    #[cfg(feature = "msgpack")]
+    pub fn decode_msgpack<'de, T: serde::Deserialize<'de>>(&'de self) -> Option<T> {
+        if let Ok(val) = &self.0 {
+            match rmp_serde::decode::from_slice(val) {
+                Ok(json) => Some(json),
+                Err(e) => {
+                    log::error!("failed to deserialize: {e:?}");
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    }
+    pub fn deserialize_json<'de, T: serde::Deserialize<'de>>(&'de self) -> Option<T> {
         match serde_json::from_str(self.as_str()?) {
             Ok(json) => Some(json),
             Err(e) => {
