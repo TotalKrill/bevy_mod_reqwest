@@ -17,7 +17,7 @@ msgpack = ["rmp-serde"]
 
 [dependencies]
 async-compat = "0.2.1"
-bevy = "0.11.0"
+bevy = { version = "0.11.0", default-features = false }
 bytes = "=1.1.0"
 futures-lite = "1.12.0"
 reqwest = { version = "0.11.16", default-features = false }
