@@ -10,8 +10,9 @@ license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
-default = ["default-tls"]
+default = ["default-tls", "json"]
 default-tls = ["reqwest/default-tls"]
+json = ["reqwest/json"]
 rustls-tls = ["reqwest/rustls-tls"]
 msgpack = ["rmp-serde"]
 

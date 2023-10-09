@@ -1,3 +1,5 @@
+use std::ops::DerefMut;
+
 use bevy::tasks::AsyncComputeTaskPool;
 use bevy::{log, prelude::*};
 pub use reqwest;
@@ -13,6 +15,18 @@ pub struct ReqwestClient(pub reqwest::Client);
 impl Default for ReqwestClient {
     fn default() -> Self {
         Self(reqwest::Client::new())
+    }
+}
+
+impl std::ops::Deref for ReqwestClient {
+    type Target = reqwest::Client;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl DerefMut for ReqwestClient {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
