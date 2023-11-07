@@ -61,7 +61,7 @@ pub struct ReqwestBytesResult(pub reqwest::Result<bytes::Bytes>);
 impl ReqwestBytesResult {
     pub fn as_str(&self) -> Option<&str> {
         match &self.0 {
-            Ok(string) => Some(std::str::from_utf8(&string).ok()?),
+            Ok(string) => Some(std::str::from_utf8(string).ok()?),
             Err(_) => None,
         }
     }
