@@ -2,7 +2,6 @@ use std::time::Duration;
 
 use bevy::{log::LogPlugin, prelude::*, time::common_conditions::on_timer};
 use bevy_mod_reqwest::*;
-use reqwest::Body;
 use serde::Serialize;
 
 // example towards jsonplaceholder.typicod.com/posts
@@ -10,7 +9,7 @@ use serde::Serialize;
 struct Post {
     title: String,
     body: String,
-    userId: usize,
+    user_id: usize,
 }
 
 fn main() {
@@ -31,7 +30,7 @@ fn send_requests(mut commands: Commands, reqwest: Res<ReqwestClient>) {
     let body = Post {
         title: "hello".into(),
         body: "world".into(),
-        userId: 1,
+        user_id: 1,
     };
     let req = reqwest.0.post(url).json(&body).build().unwrap();
     let req = ReqwestRequest::new(req);
