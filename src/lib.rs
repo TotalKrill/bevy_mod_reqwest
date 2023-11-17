@@ -97,10 +97,11 @@ impl ReqwestBytesResult {
 pub struct ReqwestPlugin;
 impl Plugin for ReqwestPlugin {
     fn build(&self, app: &mut App) {
-        if !app.world.contains_resource::<ReqwestClient>() {
-            app.init_resource::<ReqwestClient>();
-        }
-        app.add_systems(Update, Self::start_handling_requests);
+        app.init_resource::<ReqwestClient>();
+        app.add_systems(
+            Update,
+            (Self::add_name_to_requests, Self::start_handling_requests).chain(),
+        );
         app.add_systems(Update, Self::poll_inflight_requests_to_bytes);
     }
 }
@@ -178,6 +179,24 @@ impl ReqwestPlugin {
                     .insert(ReqwestBytesResult(result))
                     .remove::<ReqwestInflight>();
             }
+        }
+    }
+
+    fn add_name_to_requests(
+        mut commands: Commands,
+        requests_without_name: Query<
+            (Entity, &ReqwestRequest),
+            (Added<ReqwestRequest>, Without<Name>),
+        >,
+    ) {
+        for (entity, request) in requests_without_name.iter() {
+            let Some(request) = request.as_ref() else {
+                continue;
+            };
+
+            let url = request.url().path().to_string();
+
+            commands.entity(entity).insert(Name::new(url));
         }
     }
 }
