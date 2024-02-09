@@ -9,47 +9,62 @@ fn main() {
         .add_plugins((
             DefaultPlugins,
             WorldInspectorPlugin::default(),
-            ReqwestPlugin,
+            ReqwestPlugin {
+                automatically_name_requests: true,
+            },
         ))
-        .add_systems(Startup, send_ignored_request)
         .add_systems(
             Update,
-            (
-                send_requests.run_if(on_timer(Duration::from_secs(2))),
-                handle_responses.run_if(on_timer(Duration::from_secs(1))),
-            ),
+            send_ignored_request.run_if(on_timer(Duration::from_secs(1))),
+        )
+        .add_systems(
+            Update,
+            send_requests_that_remain.run_if(on_timer(Duration::from_secs(1))),
+        )
+        .add_systems(
+            Update,
+            (spawn_requests_with_generated_name.run_if(on_timer(Duration::from_secs(3))),),
         )
         .run();
 }
 
+fn send_ignored_request(mut client: BevyReqwest) {
+    let url = "https://www.boredapi.com/api";
+    let req = client.get(url).build().unwrap();
+    client.fire_and_forget(req);
+}
+
+fn spawn_requests_with_generated_name(mut client: BevyReqwest) {
+    let url = "https://www.boredapi.com/api";
+    let req = client.get(url).build().unwrap();
+    client.send(
+        req,
+        On::run(|req: Listener<ReqResponse>| {
+            let res = req.as_str();
+            bevy::log::info!("return data: {res:?}");
+        }),
+    );
+}
+
 #[derive(Component)]
-struct Ignore;
-
-fn send_ignored_request(mut commands: Commands) {
-    let Ok(url) = "https://www.boredapi.com/api".try_into() else {
-        return;
-    };
-
-    let req = reqwest::Request::new(reqwest::Method::GET, url);
-    let req = ReqwestRequest::new(req);
-    commands.spawn((req, Ignore));
+pub struct Data {
+    pub s: String,
 }
 
-fn send_requests(mut commands: Commands) {
-    let Ok(url) = "https://www.boredapi.com/api".try_into() else {
-        return;
-    };
-
-    let req = reqwest::Request::new(reqwest::Method::GET, url);
-    let req = ReqwestRequest::new(req);
-    commands.spawn(req);
-}
-
-fn handle_responses(
-    mut commands: Commands,
-    results: Query<Entity, (Without<Ignore>, With<ReqwestBytesResult>)>,
-) {
-    for e in results.iter() {
-        commands.entity(e).despawn_recursive();
-    }
+fn send_requests_that_remain(mut commands: Commands, mut client: BevyReqwest) {
+    let url = "https://www.boredapi.com/api";
+    let req = client.get(url).build().unwrap();
+    let e = commands
+        .spawn(Name::new("a http request to bored api"))
+        .id();
+    client.send_using_entity(
+        e,
+        req,
+        On::target_commands_mut(|ev, tc| {
+            let req: &ReqResponse = &ev;
+            let res: String = req.as_string().unwrap();
+            bevy::log::info!("return data: {res:?}");
+            tc.insert(Data { s: res.into() });
+        }),
+    );
 }

@@ -12,37 +12,31 @@ struct Post {
     user_id: usize,
 }
 
-fn main() {
-    App::new()
-        .add_plugins(MinimalPlugins)
-        .add_plugins(LogPlugin::default())
-        .add_plugins(ReqwestPlugin)
-        .add_systems(
-            Update,
-            send_requests.run_if(on_timer(Duration::from_secs(2))),
-        )
-        .add_systems(Update, handle_responses)
-        .run();
-}
-
-fn send_requests(mut commands: Commands, reqwest: Res<ReqwestClient>) {
+fn send_requests(mut client: BevyReqwest) {
     let url = "https://jsonplaceholder.typicode.com/posts";
     let body = Post {
         title: "hello".into(),
         body: "world".into(),
         user_id: 1,
     };
-    let req = reqwest.0.post(url).json(&body).build().unwrap();
-    let req = ReqwestRequest::new(req);
-    commands.spawn(req);
+    let req = client.post(url).json(&body).build().unwrap();
+    client.send(
+        req,
+        On::run(|req: Listener<ReqResponse>| {
+            let res = req.as_str();
+            bevy::log::info!("return data: {res:?}");
+        }),
+    );
 }
 
-fn handle_responses(mut commands: Commands, results: Query<(Entity, &ReqwestBytesResult)>) {
-    for (e, res) in results.iter() {
-        let string = res.as_str().unwrap();
-        bevy::log::info!("{string}");
-
-        // Done with this entity
-        commands.entity(e).despawn_recursive();
-    }
+fn main() {
+    App::new()
+        .add_plugins(MinimalPlugins)
+        .add_plugins(LogPlugin::default())
+        .add_plugins(ReqwestPlugin::default())
+        .add_systems(
+            Update,
+            send_requests.run_if(on_timer(Duration::from_secs(2))),
+        )
+        .run();
 }
