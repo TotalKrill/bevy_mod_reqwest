@@ -144,6 +144,21 @@ impl ReqResponse {
             }
         }
     }
+
+    #[cfg(feature = "msgpack")]
+    pub fn decode_msgpack<'de, T: serde::Deserialize<'de>>(&'de self) -> Option<T> {
+        if let Ok(val) = &self.0 {
+            match rmp_serde::decode::from_slice(val) {
+                Ok(json) => Some(json),
+                Err(e) => {
+                    log::error!("failed to deserialize: {e:?}");
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    }
     /// Get the `StatusCode` of this `Response`.
     #[inline]
     pub fn status(&self) -> StatusCode {
@@ -169,64 +184,6 @@ impl ReqResponse {
             bytes,
             status,
             headers,
-        }
-    }
-}
-
-impl ReqwestBytesResult {
-    pub fn body(&self) -> &reqwest::Result<bytes::Bytes> {
-        &self.body
-    }
-
-    pub fn as_str(&self) -> Option<&str> {
-        match &self.body {
-            Ok(string) => Some(std::str::from_utf8(&string).ok()?),
-            Err(_) => None,
-        }
-    }
-    pub fn as_string(&mut self) -> Option<String> {
-        Some(self.as_str()?.into())
-    }
-
-    #[cfg(feature = "msgpack")]
-    pub fn decode_msgpack<'de, T: serde::Deserialize<'de>>(&'de self) -> Option<T> {
-        if let Ok(val) = &self.0 {
-            match rmp_serde::decode::from_slice(val) {
-                Ok(json) => Some(json),
-                Err(e) => {
-                    log::error!("failed to deserialize: {e:?}");
-                    None
-                }
-            }
-        } else {
-            None
-        }
-    }
-    pub fn deserialize_json<'de, T: serde::Deserialize<'de>>(&'de self) -> Option<T> {
-        match serde_json::from_str(self.as_str()?) {
-            Ok(json) => Some(json),
-            Err(e) => {
-                log::error!("failed to deserialize: {e:?}");
-                None
-            }
-        }
-    }
-
-    /// Get the `StatusCode` of this `Response`.
-    #[inline]
-    pub fn status(&self) -> Option<StatusCode> {
-        match &self.parts {
-            Some(parts) => Some(parts.status),
-            None => None,
-        }
-    }
-
-    /// Get the `Headers` of this `Response`.
-    #[inline]
-    pub fn headers(&self) -> Option<&HeaderMap> {
-        match &self.parts {
-            Some(parts) => Some(&parts.headers),
-            None => None,
         }
     }
 }
@@ -310,7 +267,6 @@ impl ReqwestPlugin {
     }
 
     fn poll_inflight_requests_to_bytes(
-        mut commands: Commands,
         // Very important to have the Without, otherwise we get task failure upon completed task
         mut requests: Query<(Entity, &mut ReqwestInflight)>,
         mut ew_ok: EventWriter<ReqResponse>,
@@ -350,34 +306,6 @@ impl ReqwestPlugin {
             let url = request.url().path().to_string();
 
             commands.entity(entity).insert(Name::new(url));
-        }
-    }
-    fn generate_events(
-        mut commands: Commands,
-        mut ew_ok: EventWriter<ReqResponse>,
-        // mut ew_err: EventWriter<ReqError>,
-        results: Query<(Entity, &ReqwestBytesResult)>,
-    ) {
-        for (e, res) in results.iter() {
-            match res.body() {
-                Ok(body) => {
-                    // if the response is ok, the other values are already gotten, its safe to unwrap
-                    ew_ok.send(ReqResponse::new(
-                        e.clone(),
-                        body.clone(),
-                        res.status().unwrap(),
-                        res.headers().unwrap().clone(),
-                    ));
-                }
-                Err(err) => {
-                    bevy::log::error!("{err:?}");
-                    //TODO: figure out a way to include error information in a good way and what are errors
-                    // ew_err.send(ReqError::new(e.clone()));
-                }
-            }
-            if let Some(mut ec) = commands.get_entity(e) {
-                ec.remove::<ReqwestBytesResult>();
-            }
         }
     }
 }
