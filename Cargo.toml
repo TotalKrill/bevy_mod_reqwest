@@ -19,7 +19,7 @@ msgpack = ["rmp-serde"]
 [dependencies]
 anyhow = "1.0.79"
 bevy = { version = "0.12.0", default-features = false, features = ['multi-threaded']}
-bevy_eventlistener = {git = "https://github.com/aevyrie/bevy_eventlistener.git"}
+bevy_eventlistener = {version = "0.6", git = "https://github.com/aevyrie/bevy_eventlistener.git"}
 bytes = "=1.1.0"
 futures-lite = "1.12.0"
 reqwest = { version = "0.11.16", default-features = false }
