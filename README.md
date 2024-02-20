@@ -13,10 +13,16 @@ use bevy::{log::LogPlugin, prelude::*, time::common_conditions::on_timer};
 use bevy_mod_reqwest::*;
 
 fn send_requests(mut client: BevyReqwest) {
-    let url = "https://jsonplaceholder.typicode.com/posts";
-    let req = client.get(url).body("some data to send").build().unwrap();
-    // sends the request, and ignores any response, see the other examples for other uses
-    client.fire_and_forget(req);
+    let url = "https://www.boredapi.com/api/activity";
+    let req = client.get(url).build().unwrap();
+    // will run the callback, and remove the created entity after callback
+    client.send(
+        req,
+        On::run(|req: Listener<ReqResponse>| {
+            let res = req.as_str();
+            bevy::log::info!("return data: {res:?}");
+        }),
+    );
 }
 
 fn main() {

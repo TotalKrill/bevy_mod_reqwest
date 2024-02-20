@@ -26,29 +26,27 @@ pub struct Bored {
 /// [example](https://github.com/aevyrie/bevy_eventlistener/blob/main/examples/event_listeners.rs)
 impl From<ListenerInput<ReqResponse>> for Bored {
     fn from(value: ListenerInput<ReqResponse>) -> Self {
-        log::info!("headers: {:#?}", value.headers());
         let s = value.deserialize_json().unwrap();
         s
     }
 }
 /// builds the http requests
 fn send_requests(mut bevyreq: BevyReqwest) {
-    for _ in 0..100 {
-        let url: Url = "https://www.boredapi.com/api/activity".try_into().unwrap();
-        let reqwest = bevyreq.client().get(url).build().unwrap();
-        bevyreq.send(
-            // the http request
-            reqwest,
-            // what to do when the api call is complete
-            On::send_event::<Bored>(),
-        );
-    }
+    log::info!("Sending activity request");
+    let url: Url = "https://www.boredapi.com/api/activity".try_into().unwrap();
+    let reqwest = bevyreq.client().get(url).build().unwrap();
+    bevyreq.send(
+        // the http request
+        reqwest,
+        // what to do when the api call is complete
+        On::send_event::<Bored>(),
+    );
 }
 
 /// here you can do anything with the data from the events
 fn handle_events(mut events: EventReader<Bored>) {
     for ev in events.read() {
-        log::info!("{ev:?}");
+        log::info!("got respoonse: {ev:?}");
     }
 }
 

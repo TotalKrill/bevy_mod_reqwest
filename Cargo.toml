@@ -31,7 +31,7 @@ serde_json = {version = "1.0.95", optional = true }
 crossbeam-channel = "0.5.7"
 
 [dev-dependencies]
-bevy-inspector-egui = {version = "0.23", git = "https://github.com/Aztro-dev/bevy-inspector-egui.git" }
+# bevy-inspector-egui = {version = "0.23", git = "https://github.com/Aztro-dev/bevy-inspector-egui.git" }
 bevy = {version = "0.13.0", features = ["multi-threaded"]}
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
