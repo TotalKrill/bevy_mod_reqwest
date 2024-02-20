@@ -31,12 +31,14 @@ fn main() {
 fn send_ignored_request(mut client: BevyReqwest) {
     let url = "https://www.boredapi.com/api";
     let req = client.get(url).build().unwrap();
+    // ignores any responses and removes the created entity
     client.fire_and_forget(req);
 }
 
 fn spawn_requests_with_generated_name(mut client: BevyReqwest) {
     let url = "https://www.boredapi.com/api";
     let req = client.get(url).build().unwrap();
+    // will run the callback, and remove the created entity after callback
     client.send(
         req,
         On::run(|req: Listener<ReqResponse>| {
@@ -52,11 +54,12 @@ pub struct Data {
 }
 
 fn send_requests_that_remain(mut commands: Commands, mut client: BevyReqwest) {
-    let url = "https://www.boredapi.com/api";
+    let url = "https://www.boredapi.com/api/activity";
     let req = client.get(url).build().unwrap();
     let e = commands
         .spawn(Name::new("a http request to bored api"))
         .id();
+    // this will not automatically remove the entity after return of data, wich will leave a bunch of entities visible in the inspector
     client.send_using_entity(
         e,
         req,

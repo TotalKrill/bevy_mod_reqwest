@@ -1,7 +1,7 @@
 [package]
 name = "bevy_mod_reqwest"
 description = "use reqwest with the bevy runtime in the same way on both web and native"
-version = "0.13.0"
+version = "0.14.0"
 edition = "2021"
 readme = "README.md"
 authors = ["Kristoffer Ödmark <kristoffer.odmark90@gmail.com>"]
@@ -18,11 +18,11 @@ msgpack = ["rmp-serde"]
 
 [dependencies]
 anyhow = "1.0.79"
-bevy = { version = "0.12.0", default-features = false, features = ['multi-threaded']}
-bevy_eventlistener = {version = "0.6", git = "https://github.com/aevyrie/bevy_eventlistener.git"}
+bevy = { version = "0.13.0", default-features = false, features = ["multi-threaded"]}
+bevy_eventlistener = {version = "0.7", git = "https://github.com/aevyrie/bevy_eventlistener.git"}
 bytes = "=1.1.0"
 futures-lite = "1.12.0"
-reqwest = { version = "0.11.16", default-features = false }
+reqwest = { version = "0.11", default-features = false }
 rmp-serde = {version = "1.1.2", optional = true}
 serde = { version = "1.0.159", features = ["derive"] }
 serde_json = {version = "1.0.95", optional = true }
@@ -31,8 +31,8 @@ serde_json = {version = "1.0.95", optional = true }
 crossbeam-channel = "0.5.7"
 
 [dev-dependencies]
-bevy-inspector-egui = "0.21.0"
-bevy = {version = "0.12.0", features = ["multi-threaded"]}
+bevy-inspector-egui = {version = "0.23", git = "https://github.com/Aztro-dev/bevy-inspector-egui.git" }
+bevy = {version = "0.13.0", features = ["multi-threaded"]}
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 async-compat = "0.2.1"
