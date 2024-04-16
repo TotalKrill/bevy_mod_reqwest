@@ -141,16 +141,15 @@ impl ReqwestPlugin {
 
     fn poll_inflight_requests_to_bytes(
         mut commands: Commands,
-        // Very important to have the Without, otherwise we get task failure upon completed task
         mut requests: Query<(Entity, &mut ReqwestInflight)>,
         mut ew_ok: EventWriter<ReqResponse>,
     ) {
         for (entity, mut request) in requests.iter_mut() {
             bevy::log::debug!("polling: {entity:?}");
             if let Some((result, parts)) = request.poll() {
-                let parts = parts.unwrap();
                 match result {
                     Ok(body) => {
+                        let parts = parts.unwrap();
                         // if the response is ok, the other values are already gotten, its safe to unwrap
                         ew_ok.send(ReqResponse::new(
                             entity.clone(),
