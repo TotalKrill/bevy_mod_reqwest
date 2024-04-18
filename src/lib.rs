@@ -45,12 +45,17 @@ impl Plugin for ReqwestPlugin {
         if self.automatically_name_requests {
             app.add_systems(Update, Self::add_name_to_requests);
         }
+        //
         app.add_systems(
             Update,
             (
-                Self::poll_inflight_requests_to_bytes,
+                // These systems are chained as the callbacks are triggered in PreUpdate
+                // So if remove_finished_requests runs after poll_inflight_requests_to_bytes
+                // the entity will be removed before the callback is triggered.
                 Self::remove_finished_requests,
-            ),
+                Self::poll_inflight_requests_to_bytes,
+            )
+                .chain(),
         );
     }
 }
