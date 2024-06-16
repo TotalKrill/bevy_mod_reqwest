@@ -36,7 +36,7 @@ impl Default for ReqwestPlugin {
 }
 impl Plugin for ReqwestPlugin {
     fn build(&self, app: &mut App) {
-        if !app.world.contains_resource::<ReqwestClient>() {
+        if !app.world().contains_resource::<ReqwestClient>() {
             app.init_resource::<ReqwestClient>();
         }
         app.add_plugins(EventListenerPlugin::<ReqResponse>::default());
