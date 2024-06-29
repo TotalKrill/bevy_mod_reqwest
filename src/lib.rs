@@ -11,7 +11,6 @@ use crossbeam_channel::{bounded, Receiver};
 
 pub use reqwest::header::HeaderMap;
 pub use reqwest::{StatusCode, Version};
-use serde::de::DeserializeOwned;
 
 #[cfg(not(target_family = "wasm"))]
 use {bevy::tasks::Task, futures_lite::future};
