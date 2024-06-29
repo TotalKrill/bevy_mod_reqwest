@@ -76,25 +76,26 @@ impl ReqwestPlugin {
 
                 // wasm implementation
                 #[cfg(target_family = "wasm")]
-                let (tx, task) = bounded(1);
-
-                #[cfg(target_family = "wasm")]
-                thread_pool
-                    .spawn(async move {
-                        let r = client.execute(request).await;
-                        let r = match r {
-                            Ok(res) => {
-                                let parts = Parts {
-                                    status: res.status(),
-                                    headers: res.headers().clone(),
-                                };
-                                (res.bytes().await, Some(parts))
-                            }
-                            Err(r) => (Err(r), None),
-                        };
-                        tx.send(r).ok();
-                    })
-                    .detach();
+                let task = {
+                    let (tx, task) = bounded(1);
+                    thread_pool
+                        .spawn(async move {
+                            let r = client.execute(request).await;
+                            let r = match r {
+                                Ok(res) => {
+                                    let parts = Parts {
+                                        status: res.status(),
+                                        headers: res.headers().clone(),
+                                    };
+                                    (res.bytes().await, Some(parts))
+                                }
+                                Err(r) => (Err(r), None),
+                            };
+                            tx.send(r).ok();
+                        })
+                        .detach();
+                    task
+                };
 
                 // otherwise
                 #[cfg(not(target_family = "wasm"))]
@@ -175,6 +176,8 @@ impl ReqwestPlugin {
             }
         }
     }
+
+    /// System that automatically adds a name to http request entites if they are unnamed
     fn add_name_to_requests(
         mut commands: Commands,
         requests_without_name: Query<(Entity, &ReqRequest), (Added<ReqRequest>, Without<Name>)>,
@@ -186,7 +189,9 @@ impl ReqwestPlugin {
 
             let url = request.url().path().to_string();
 
-            commands.entity(entity).insert(Name::new(url));
+            commands
+                .entity(entity)
+                .insert(Name::new(format!("http: {url}")));
         }
     }
 }
