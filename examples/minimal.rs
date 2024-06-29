@@ -7,16 +7,14 @@ fn send_requests(mut client: BevyReqwest) {
     let url = "https://bored-api.appbrewery.com/random";
     let req = client.get(url).build().unwrap();
     // will run the callback, and remove the created entity after callback
-    client.send(
-        req,
-        On::run(|req: Listener<ReqwestResponseEvent>| {
-            let res = req.as_str();
-            let status = req.status();
+    client.send(req, |trigger: Trigger<ReqwestResponseEvent>| {
+        let req = trigger.event();
+        let res = req.as_str();
+        let status = req.status();
 
-            // let headers = req.response_headers();
-            bevy::log::info!("code: {status}, data: {res:?}");
-        }),
-    );
+        // let headers = req.response_headers();
+        bevy::log::info!("code: {status}, data: {res:?}");
+    });
 }
 
 fn main() {

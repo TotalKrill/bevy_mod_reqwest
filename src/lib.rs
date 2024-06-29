@@ -1,12 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
-use bevy::ecs::system::SystemParam;
+use bevy::ecs::system::{IntoObserverSystem, SystemParam};
 use bevy::tasks::AsyncComputeTaskPool;
 use bevy::{log, prelude::*};
-use bevy_eventlistener::prelude::*;
 
-pub use bevy_eventlistener;
-pub use bevy_eventlistener::prelude::{Listener, On};
 pub use reqwest;
 
 #[cfg(target_family = "wasm")]
@@ -41,9 +38,6 @@ impl Plugin for ReqwestPlugin {
         if !app.world().contains_resource::<ReqwestClient>() {
             app.init_resource::<ReqwestClient>();
         }
-
-        app.add_plugins(EventListenerPlugin::<ReqwestResponseEvent>::default());
-        // app.add_plugins(EventListenerPlugin::<ReqError>::default());
 
         if self.automatically_name_requests {
             // register a hook on the component to add a name to the entity if it doesnt have one already
@@ -91,7 +85,6 @@ impl ReqwestPlugin {
     fn poll_inflight_requests_to_bytes(
         mut commands: Commands,
         mut requests: Query<(Entity, &mut ReqwestInflight)>,
-        mut ew_ok: EventWriter<ReqwestResponseEvent>,
     ) {
         for (entity, mut request) in requests.iter_mut() {
             bevy::log::debug!("polling: {entity:?}");
@@ -100,12 +93,11 @@ impl ReqwestPlugin {
                     Ok(body) => {
                         let parts = parts.unwrap();
                         // if the response is ok, the other values are already gotten, its safe to unwrap
-                        ew_ok.send(ReqwestResponseEvent::new(
+
+                        commands.trigger_targets(
+                            ReqwestResponseEvent::new(body.clone(), parts.status, parts.headers),
                             entity.clone(),
-                            body.clone(),
-                            parts.status,
-                            parts.headers,
-                        ));
+                        );
                     }
                     Err(err) => {
                         bevy::log::error!("{err:?}");
@@ -130,24 +122,29 @@ pub struct BevyReqwest<'w, 's> {
 
 impl<'w, 's> BevyReqwest<'w, 's> {
     /// sends the http request as a new entity, that is despawned upon completion
-    pub fn send(&mut self, req: reqwest::Request, onresponse: On<ReqwestResponseEvent>) {
+    pub fn send<E: Event, B: Bundle, M>(
+        &mut self,
+        req: reqwest::Request,
+        onresponse: impl IntoObserverSystem<E, B, M>,
+    ) {
         let inflight = self.create_inflight_task(req);
 
         self.commands
-            .spawn((inflight, onresponse, DespawnReqwestEntity));
+            .spawn((inflight, DespawnReqwestEntity))
+            .observe(onresponse);
     }
 
     /// sends the http request as a new entity, that is despawned upon completion, and ignore any responses
-    pub fn fire_and_forget(&mut self, req: reqwest::Request) {
+    pub fn send_and_ignore(&mut self, req: reqwest::Request) {
         let inflight = self.create_inflight_task(req);
         self.commands.spawn((inflight, DespawnReqwestEntity));
     }
     /// sends the http request attached to an existing entity, this does not despawn the entity once completed
-    pub fn send_using_entity(
+    pub fn send_using_entity<E: Event, B: Bundle, M>(
         &mut self,
         entity: Entity,
         req: reqwest::Request,
-        onresponse: On<ReqwestResponseEvent>,
+        onresponse: impl IntoObserverSystem<E, B, M>,
     ) {
         let inflight = self.create_inflight_task(req);
         let Some(mut ec) = self.commands.get_entity(entity) else {
@@ -155,7 +152,7 @@ impl<'w, 's> BevyReqwest<'w, 's> {
             return;
         };
         log::info!("inserting request on entity: {:?}", entity);
-        ec.insert((inflight, onresponse));
+        ec.insert(inflight).observe(onresponse);
     }
     /// get access to the underlying ReqwestClient
     pub fn client(&self) -> &reqwest::Client {
@@ -307,58 +304,56 @@ struct Parts {
     pub(crate) headers: HeaderMap,
 }
 
-#[derive(Clone, Event, EntityEvent)]
+#[derive(Clone, Event)]
 /// the resulting data from a finished request is found here
 pub struct ReqwestResponseEvent {
-    #[target]
-    target: Entity,
     bytes: bytes::Bytes,
     status: StatusCode,
     headers: HeaderMap,
 }
 
-#[cfg(feature = "json")]
-/// tries to deserialize the response using json into the provided struct, and then overwrite a bevy resource if it succeds
-pub fn deserialize_json_into_resource<'de, R>() -> On<ReqwestResponseEvent>
-where
-    R: Resource + DeserializeOwned,
-{
-    let on = On::<ReqwestResponseEvent>::run(
-        |mut resource: ResMut<R>, req: Listener<ReqwestResponseEvent>| {
-            match req.deserialize_json::<R>() {
-                Ok(s) => {
-                    // do stuff
-                    *resource = s;
-                }
-                Err(e) => {
-                    log::error!("Resource update failed: {e}");
-                }
-            }
-        },
-    );
-    on
-}
-#[cfg(feature = "msgpack")]
-/// tries to deserialize the response using msgpack into the provided struct, and then overwrite a bevy resource if it succeds
-pub fn deserialize_msgpack_into_resource<'de, R>() -> On<ReqwestResponseEvent>
-where
-    R: Resource + DeserializeOwned,
-{
-    let on = On::<ReqwestResponseEvent>::run(
-        |mut resource: ResMut<R>, req: Listener<ReqwestResponseEvent>| {
-            match req.deserialize_msgpack::<R>() {
-                Ok(s) => {
-                    // do stuff
-                    *resource = s;
-                }
-                Err(e) => {
-                    log::error!("Resource update failed: {e}");
-                }
-            }
-        },
-    );
-    on
-}
+// #[cfg(feature = "json")]
+// /// tries to deserialize the response using json into the provided struct, and then overwrite a bevy resource if it succeds
+// pub fn deserialize_json_into_resource<'de, R>() -> On<ReqwestResponseEvent>
+// where
+//     R: Resource + DeserializeOwned,
+// {
+//     let on = On::<ReqwestResponseEvent>::run(
+//         |mut resource: ResMut<R>, req: Listener<ReqwestResponseEvent>| {
+//             match req.deserialize_json::<R>() {
+//                 Ok(s) => {
+//                     // do stuff
+//                     *resource = s;
+//                 }
+//                 Err(e) => {
+//                     log::error!("Resource update failed: {e}");
+//                 }
+//             }
+//         },
+//     );
+//     on
+// }
+// #[cfg(feature = "msgpack")]
+// /// tries to deserialize the response using msgpack into the provided struct, and then overwrite a bevy resource if it succeds
+// pub fn deserialize_msgpack_into_resource<'de, R>() -> On<ReqwestResponseEvent>
+// where
+//     R: Resource + DeserializeOwned,
+// {
+//     let on = On::<ReqwestResponseEvent>::run(
+//         |mut resource: ResMut<R>, req: Listener<ReqwestResponseEvent>| {
+//             match req.deserialize_msgpack::<R>() {
+//                 Ok(s) => {
+//                     // do stuff
+//                     *resource = s;
+//                 }
+//                 Err(e) => {
+//                     log::error!("Resource update failed: {e}");
+//                 }
+//             }
+//         },
+//     );
+//     on
+// }
 
 // #[derive(Clone, Event, EntityEvent)]
 // pub struct ReqError {
@@ -412,14 +407,8 @@ impl ReqwestResponseEvent {
 }
 
 impl ReqwestResponseEvent {
-    pub(crate) fn new(
-        target: Entity,
-        bytes: bytes::Bytes,
-        status: StatusCode,
-        headers: HeaderMap,
-    ) -> Self {
+    pub(crate) fn new(bytes: bytes::Bytes, status: StatusCode, headers: HeaderMap) -> Self {
         Self {
-            target,
             bytes,
             status,
             headers,
