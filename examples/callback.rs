@@ -24,8 +24,8 @@ pub struct Bored {
 /// this is one way to automatically turn the responses into events, which is
 /// the prefered way, since it allows parallelism according to
 /// [example](https://github.com/aevyrie/bevy_eventlistener/blob/main/examples/event_listeners.rs)
-impl From<ListenerInput<ReqResponse>> for Bored {
-    fn from(value: ListenerInput<ReqResponse>) -> Self {
+impl From<ListenerInput<ReqwestResponseEvent>> for Bored {
+    fn from(value: ListenerInput<ReqwestResponseEvent>) -> Self {
         let s = value.deserialize_json().unwrap();
         s
     }
