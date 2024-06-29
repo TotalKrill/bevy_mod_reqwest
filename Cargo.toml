@@ -1,7 +1,7 @@
 [package]
 name = "bevy_mod_reqwest"
 description = "use reqwest with the bevy runtime in the same way on both web and native"
-version = "0.14.3"
+version = "0.15.0-dev"
 edition = "2021"
 readme = "README.md"
 authors = ["Kristoffer Ödmark <kristoffer.odmark90@gmail.com>"]
@@ -18,7 +18,7 @@ msgpack = ["rmp-serde"]
 
 [dependencies]
 anyhow = "1.0.79"
-bevy = { version = "0.14.0-rc.3", default-features = false, features = ["multi_threaded"]}
+bevy = { version = "0.14.0-rc.4", default-features = false, features = ["multi_threaded"]}
 bytes = "=1.1.0"
 futures-lite = "1.12.0"
 reqwest = { version = "0.11", default-features = false }
@@ -31,7 +31,7 @@ crossbeam-channel = "0.5.7"
 
 [dev-dependencies]
 # bevy-inspector-egui = {version = "0.23", git = "https://github.com/Aztro-dev/bevy-inspector-egui.git" }
-bevy = {version = "0.14.0-rc.3", features = ["multi_threaded"]}
+bevy = {version = "0.14.0-rc.4", features = ["multi_threaded"]}
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 async-compat = "0.2.1"
