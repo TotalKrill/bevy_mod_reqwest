@@ -1,8 +1,10 @@
 use std::ops::{Deref, DerefMut};
 
-use bevy::ecs::system::{IntoObserverSystem, SystemParam};
-use bevy::tasks::AsyncComputeTaskPool;
-use bevy::{log, prelude::*};
+use bevy::{
+    ecs::system::{IntoObserverSystem, SystemParam},
+    prelude::*,
+    tasks::AsyncComputeTaskPool,
+};
 
 pub use reqwest;
 
@@ -86,7 +88,7 @@ impl ReqwestPlugin {
         mut requests: Query<(Entity, &mut ReqwestInflight)>,
     ) {
         for (entity, mut request) in requests.iter_mut() {
-            bevy::log::debug!("polling: {entity:?}");
+            debug!("polling: {entity:?}");
             if let Some((result, parts)) = request.poll() {
                 match result {
                     Ok(body) => {
@@ -99,7 +101,7 @@ impl ReqwestPlugin {
                         );
                     }
                     Err(err) => {
-                        bevy::log::error!("{err:?}");
+                        error!("{err:?}");
                         //TODO: figure out a way to include error information in a good way and what are errors
                         // ew_err.send(ReqError::new(e.clone()));
                     }
@@ -147,10 +149,10 @@ impl<'w, 's> BevyReqwest<'w, 's> {
     ) {
         let inflight = self.create_inflight_task(req);
         let Some(mut ec) = self.commands.get_entity(entity) else {
-            log::error!("Failed to get entity");
+            error!("Failed to get entity");
             return;
         };
-        log::info!("inserting request on entity: {:?}", entity);
+        info!("inserting request on entity: {:?}", entity);
         ec.insert(inflight).observe(onresponse);
     }
     /// get access to the underlying ReqwestClient

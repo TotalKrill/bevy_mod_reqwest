@@ -1,37 +1,45 @@
 [package]
-name = "bevy_mod_reqwest"
-description = "use reqwest with the bevy runtime in the same way on both web and native"
-version = "0.15.0-dev"
-edition = "2021"
-readme = "README.md"
-authors = ["Kristoffer Ödmark <kristoffer.odmark90@gmail.com>"]
-repository = "https://github.com/TotalKrill/bevy_mod_reqwest.git"
-license = "MIT"
+name        = "bevy_mod_reqwest"
+description = "Bevy http client using reqwest, with a focus on simple usage within the bevy runtime"
+version     = "0.15.0-dev"
+edition     = "2021"
+readme      = "README.md"
+authors     = ["Kristoffer Ödmark <kristoffer.odmark90@gmail.com>"]
+repository  = "https://github.com/TotalKrill/bevy_mod_reqwest.git"
+license     = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
-default = ["rustls-tls", "json"]
+default     = ["rustls-tls", "json"]
 default-tls = ["reqwest/default-tls"]
-json = ["reqwest/json", "serde_json"]
-rustls-tls = ["reqwest/rustls-tls"]
-msgpack = ["rmp-serde"]
+json        = ["reqwest/json", "serde_json"]
+rustls-tls  = ["reqwest/rustls-tls"]
+msgpack     = ["rmp-serde"]
 
 [dependencies]
-anyhow = "1.0.79"
-bevy = { version = "0.14.0-rc.4", default-features = false, features = ["multi_threaded"]}
-bytes = "=1.1.0"
-futures-lite = "1.12.0"
-reqwest = { version = "0.11", default-features = false }
-rmp-serde = {version = "1.1.2", optional = true}
-serde = { version = "1.0.159", features = ["derive"] }
-serde_json = {version = "1.0.95", optional = true }
+reqwest        = { version = "0.12", default-features = false }
+rmp-serde      = { version = "1.1.2", optional = true}
+serde          = { version = "1.0.159", features = ["derive"] }
+serde_json     = { version = "1", optional = true }
+
+anyhow         = "1.0.79"
+bytes          = "1.6.0"
+futures-lite   = "2.3.0"
+
+[dependencies.bevy]
+version = "0.14.0-rc.4"
+default-features = false
+features = [
+  "multi_threaded",
+]
+
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 crossbeam-channel = "0.5.7"
 
 [dev-dependencies]
 # bevy-inspector-egui = {version = "0.23", git = "https://github.com/Aztro-dev/bevy-inspector-egui.git" }
-bevy = {version = "0.14.0-rc.4", features = ["multi_threaded"]}
+bevy = {version = "0.14.0-rc.4", default-features = false, features = ["multi_threaded"]}
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 async-compat = "0.2.1"
