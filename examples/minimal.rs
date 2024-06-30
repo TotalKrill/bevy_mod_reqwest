@@ -5,16 +5,22 @@ use bevy_mod_reqwest::*;
 
 fn send_requests(mut client: BevyReqwest) {
     let url = "https://bored-api.appbrewery.com/random";
-    let req = client.get(url).build().unwrap();
-    // will run the callback, and remove the created entity after callback
-    client.send(req, |trigger: Trigger<ReqwestResponseEvent>| {
-        let req = trigger.event();
-        let res = req.as_str();
-        let status = req.status();
 
-        // let headers = req.response_headers();
-        bevy::log::info!("code: {status}, data: {res:?}");
-    });
+    // use regular reqwest http calls, then poll them to completion.
+    let reqwest_request = client.get(url).build().unwrap();
+    // will run the callback, and remove the created entity after callback
+    client.send(
+        reqwest_request,
+        // When the http request has finished, the following system will be run
+        |trigger: Trigger<ReqwestResponseEvent>| {
+            let response = trigger.event();
+            let data = response.as_str();
+            let status = response.status();
+
+            // let headers = req.response_headers();
+            bevy::log::info!("code: {status}, data: {data:?}");
+        },
+    );
 }
 
 fn main() {
