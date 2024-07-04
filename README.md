@@ -1,8 +1,16 @@
 # bevy_mod_reqwest
 
+[![crates.io](https://img.shields.io/crates/v/bevy_mod_reqwest)](https://crates.io/crates/bevy_mod_reqwest)
+[![docs.rs](https://docs.rs/bevy_mod_reqwest/badge.svg)](https://docs.rs/bevy_mod_reqwest)
+
 This crate helps when trying to use reqwest with bevy, without having to deal with async stuff, and it works on both web and and native
 ( only tested on x86_64 and wasm for now)
 
+| Bevy version | bevy_mod_reqwest version |
+| ------------ | ------------------------ |
+| 0.14         | 0.15                     |
+| 0.13         | 0.14                     |
+| 0.12         | 0.12 - 0.13              |
 
 ## Example
 
@@ -13,15 +21,22 @@ use bevy::{log::LogPlugin, prelude::*, time::common_conditions::on_timer};
 use bevy_mod_reqwest::*;
 
 fn send_requests(mut client: BevyReqwest) {
-    let url = "https://www.boredapi.com/api/activity";
-    let req = client.get(url).build().unwrap();
+    let url = "https://bored-api.appbrewery.com/random";
+
+    // use regular reqwest http calls, then poll them to completion.
+    let reqwest_request = client.get(url).build().unwrap();
     // will run the callback, and remove the created entity after callback
     client.send(
-        req,
-        On::run(|req: Listener<ReqResponse>| {
-            let res = req.as_str();
-            bevy::log::info!("return data: {res:?}");
-        }),
+        reqwest_request,
+        // When the http request has finished, the following system will be run
+        |trigger: Trigger<ReqwestResponseEvent>| {
+            let response = trigger.event();
+            let data = response.as_str();
+            let status = response.status();
+
+            // let headers = req.response_headers();
+            bevy::log::info!("code: {status}, data: {data:?}");
+        },
     );
 }
 
