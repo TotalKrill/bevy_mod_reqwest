@@ -10,25 +10,21 @@ fn send_requests(mut client: BevyReqwest) {
     let reqwest_request = client.get(url).build().unwrap();
 
     client
+        // Sends the created http request
         .send(reqwest_request)
-        .on_response(
-            // When the http request has finished, the following system will be run
-            |trigger: Trigger<ReqwestResponseEvent>| {
-                let response = trigger.event();
-                let data = response.as_str();
-                let status = response.status();
-                // let headers = req.response_headers();
-                bevy::log::info!("code: {status}, data: {data:?}");
-            },
-        )
-        .on_error(
-            // In case of failure the http request has finished, the following system will be run
-            |trigger: Trigger<ReqwestErrorEvent>| {
-                let response = trigger.event();
-                let e = &response.0;
-                bevy::log::info!("error: {e:?}");
-            },
-        );
+        // The response from the http request can be reached using an observersystem
+        .on_response(|trigger: Trigger<ReqwestResponseEvent>| {
+            let response = trigger.event();
+            let data = response.as_str();
+            let status = response.status();
+            // let headers = req.response_headers();
+            bevy::log::info!("code: {status}, data: {data:?}");
+        })
+        // In case of request error, it can be reached using an observersystem
+        .on_error(|trigger: Trigger<ReqwestErrorEvent>| {
+            let e = &trigger.event().0;
+            bevy::log::info!("error: {e:?}");
+        });
 }
 
 fn main() {
