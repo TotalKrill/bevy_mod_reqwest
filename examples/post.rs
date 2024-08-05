@@ -20,11 +20,13 @@ fn send_requests(mut client: BevyReqwest) {
         user_id: 1,
     };
     let req = client.post(url).json(&body).build().unwrap();
-    client.send(req, |req: Trigger<ReqwestResponseEvent>| {
-        let req = req.event();
-        let res = req.as_str();
-        bevy::log::info!("return data: {res:?}");
-    });
+    client
+        .send(req)
+        .on_response(|req: Trigger<ReqwestResponseEvent>| {
+            let req = req.event();
+            let res = req.as_str();
+            bevy::log::info!("return data: {res:?}");
+        });
 }
 
 fn main() {

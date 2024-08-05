@@ -166,13 +166,15 @@ pub struct BevyReqwest<'w, 's> {
 
 impl<'w, 's> BevyReqwest<'w, 's> {
     /// Starts sending and processing the supplied [`reqwest::Request`]
-    pub fn start(&mut self, req: reqwest::Request) -> BevyReqwestBuilder {
+    /// then use the [`BevyReqwestBuilder`] to add handlers for responses and errors
+    pub fn send(&mut self, req: reqwest::Request) -> BevyReqwestBuilder {
         let inflight = self.create_inflight_task(req);
         BevyReqwestBuilder(self.commands.spawn((inflight, DespawnReqwestEntity)))
     }
 
     /// Starts sending and processing the supplied [`reqwest::Request`] on the supplied [`Entity`] if it exists
-    pub fn start_on_entity(
+    /// and then use the [`BevyReqwestBuilder`] to add handlers for responses and errors
+    pub fn send_using_entity(
         &mut self,
         entity: Entity,
         req: reqwest::Request,
@@ -184,32 +186,6 @@ impl<'w, 's> BevyReqwest<'w, 's> {
         Some(BevyReqwestBuilder(ec))
     }
 
-    /// sends the http request as a new entity, that is despawned upon completion
-    pub fn send<RB: Bundle, RM>(
-        &mut self,
-        req: reqwest::Request,
-        onresponse: impl IntoObserverSystem<ReqwestResponseEvent, RB, RM>,
-    ) {
-        self.start(req).on_response(onresponse);
-    }
-
-    /// sends the http request as a new entity, that is despawned upon completion, and ignore any responses
-    pub fn send_and_ignore(&mut self, req: reqwest::Request) {
-        self.start(req);
-    }
-    /// sends the http request attached to an existing entity, this does not despawn the entity once completed
-    pub fn send_using_entity<E: Event, B: Bundle, M>(
-        &mut self,
-        entity: Entity,
-        req: reqwest::Request,
-        onresponse: impl IntoObserverSystem<ReqwestResponseEvent, B, M>,
-    ) {
-        let Some(mut bc) = self.start_on_entity(entity, req) else {
-            error!("Failed to start reqwest on entity {entity}");
-            return;
-        };
-        bc.on_response(onresponse);
-    }
     /// get access to the underlying ReqwestClient
     pub fn client(&self) -> &reqwest::Client {
         &self.client.0
@@ -369,7 +345,6 @@ pub struct ReqwestResponseEvent {
 }
 
 #[derive(Event, Debug)]
-/// An error as supplied from the
 pub struct ReqwestErrorEvent(pub reqwest::Error);
 
 impl ReqwestResponseEvent {

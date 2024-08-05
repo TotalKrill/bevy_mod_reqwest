@@ -1,7 +1,7 @@
 [package]
 name        = "bevy_mod_reqwest"
 description = "Bevy http client using reqwest, with a focus on simple usage within the bevy runtime"
-version     = "0.15.0"
+version     = "0.16.0"
 edition     = "2021"
 readme      = "README.md"
 authors     = ["Kristoffer Ödmark <kristoffer.odmark90@gmail.com>"]
@@ -33,13 +33,8 @@ features = [
   "multi_threaded",
 ]
 
-
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 crossbeam-channel = "0.5.7"
-
-[dev-dependencies]
-# bevy-inspector-egui = {version = "0.23", git = "https://github.com/Aztro-dev/bevy-inspector-egui.git" }
-bevy = {version = "0.14.0-rc.4", default-features = false, features = ["multi_threaded"]}
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 async-compat = "0.2.1"

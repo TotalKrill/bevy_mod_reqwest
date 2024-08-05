@@ -10,14 +10,13 @@ fn send_requests(mut client: BevyReqwest) {
     let reqwest_request = client.get(url).build().unwrap();
 
     client
-        .start(reqwest_request)
+        .send(reqwest_request)
         .on_response(
             // When the http request has finished, the following system will be run
             |trigger: Trigger<ReqwestResponseEvent>| {
                 let response = trigger.event();
                 let data = response.as_str();
                 let status = response.status();
-
                 // let headers = req.response_headers();
                 bevy::log::info!("code: {status}, data: {data:?}");
             },
@@ -27,7 +26,6 @@ fn send_requests(mut client: BevyReqwest) {
             |trigger: Trigger<ReqwestErrorEvent>| {
                 let response = trigger.event();
                 let e = &response.0;
-
                 bevy::log::info!("error: {e:?}");
             },
         );
