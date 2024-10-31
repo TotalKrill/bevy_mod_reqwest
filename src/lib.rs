@@ -17,6 +17,10 @@ pub use reqwest::{StatusCode, Version};
 #[cfg(not(target_family = "wasm"))]
 use {bevy::tasks::Task, futures_lite::future};
 
+/// The [`SystemSet`] that Reqwest systems are added to.
+#[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
+pub struct ReqwestSet;
+
 /// Plugin that allows to send http request using the [reqwest](https://crates.io/crates/reqwest) library from
 /// inside bevy.
 /// The plugin uses [bevy_eventlister](https://crates.io/crates/bevy_eventlistener) to provide callback style events
@@ -56,7 +60,7 @@ impl Plugin for ReqwestPlugin {
         }
         //
         app.add_systems(
-            Update,
+            PreUpdate,
             (
                 // These systems are chained as the callbacks are triggered in PreUpdate
                 // So if remove_finished_requests runs after poll_inflight_requests_to_bytes
@@ -64,7 +68,8 @@ impl Plugin for ReqwestPlugin {
                 Self::remove_finished_requests,
                 Self::poll_inflight_requests_to_bytes,
             )
-                .chain(),
+                .chain()
+                .in_set(ReqwestSet),
         );
     }
 }
