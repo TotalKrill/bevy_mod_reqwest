@@ -23,9 +23,10 @@ pub struct ReqwestSet;
 
 /// Plugin that allows to send http request using the [reqwest](https://crates.io/crates/reqwest) library from
 /// inside bevy.
-/// The plugin uses [bevy_eventlister](https://crates.io/crates/bevy_eventlistener) to provide callback style events
-/// when the http requests finishes.
-/// supports both wasm and native
+///
+/// The plugin uses [`Observer`] systems to provide callbacks when the http requests finishes.
+///
+/// Supports both wasm and native.
 pub struct ReqwestPlugin {
     /// this enables the plugin to insert a new [`Name`] component onto the entity used to drive
     /// the http request to completion, if no Name component already exists
@@ -40,9 +41,7 @@ impl Default for ReqwestPlugin {
 }
 impl Plugin for ReqwestPlugin {
     fn build(&self, app: &mut App) {
-        if !app.world().contains_resource::<ReqwestClient>() {
-            app.init_resource::<ReqwestClient>();
-        }
+        app.init_resource::<ReqwestClient>();
 
         if self.automatically_name_requests {
             // register a hook on the component to add a name to the entity if it doesnt have one already
@@ -121,7 +120,7 @@ impl ReqwestPlugin {
 pub struct BevyReqwestBuilder<'a>(EntityCommands<'a>);
 
 impl<'a> BevyReqwestBuilder<'a> {
-    /// Provide a system where the first argument is [`Trigger<ReqwestResponseEvent>`] that will run on the
+    /// Provide a system where the first argument is [`Trigger`] [`ReqwestResponseEvent`] that will run on the
     /// response from the http request
     ///
     /// # Examples
@@ -141,7 +140,7 @@ impl<'a> BevyReqwestBuilder<'a> {
         self
     }
 
-    /// Provide a system where the first argument is [`Trigger<ReqwestErrorEvent>`] that will run on the
+    /// Provide a system where the first argument is [`Trigger`] [`ReqwestErrorEvent`] that will run on the
     /// response from the http request
     ///
     /// # Examples
