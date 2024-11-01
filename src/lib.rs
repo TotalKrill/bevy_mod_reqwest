@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use bevy::{
     ecs::system::{EntityCommands, IntoObserverSystem, SystemParam},
     prelude::*,
-    tasks::{AsyncComputeTaskPool, IoTaskPool},
+    tasks::IoTaskPool,
 };
 
 pub use reqwest;
