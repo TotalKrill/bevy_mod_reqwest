@@ -27,7 +27,8 @@ bytes          = "1.6.0"
 futures-lite   = "2.3.0"
 
 [dependencies.bevy]
-version = "0.14.0"
+# version = "0.14.0"
+git = "https://github.com/bevyengine/bevy"
 default-features = false
 features = [
   "multi_threaded",

@@ -3,13 +3,16 @@ use std::ops::{Deref, DerefMut};
 use bevy::{
     ecs::system::{EntityCommands, IntoObserverSystem, SystemParam},
     prelude::*,
-    tasks::AsyncComputeTaskPool,
+    tasks::{AsyncComputeTaskPool, IoTaskPool},
 };
 
 pub use reqwest;
 
 #[cfg(target_family = "wasm")]
 use crossbeam_channel::{bounded, Receiver};
+
+#[cfg(feature = "json")]
+pub use json::*;
 
 pub use reqwest::header::HeaderMap;
 pub use reqwest::{StatusCode, Version};
@@ -140,6 +143,52 @@ impl<'a> BevyReqwestBuilder<'a> {
         self
     }
 
+    /// Provide a system where the first argument is [`Trigger`] [`JsonResponse`] that will run on the
+    /// response from the http request
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bevy::prelude::Trigger;
+    /// use bevy_mod_reqwest::ReqwestResponseEvent;
+    /// |trigger: Trigger<JsonResponse<T>|  {
+    ///   bevy::log::info!("response: {:?}", trigger.event());
+    /// };
+    /// ```
+    pub fn on_json_response<
+        T: std::marker::Sync + std::marker::Send + serde::de::DeserializeOwned + 'static,
+        RB: Bundle,
+        RM,
+        OR: IntoObserverSystem<json::JsonResponse<T>, RB, RM>,
+    >(
+        &mut self,
+        onresponse: OR,
+    ) -> &mut Self {
+        self.0.observe(
+            |evt: Trigger<ReqwestResponseEvent>, mut commands: Commands| {
+                let entity = evt.entity();
+                let evt = evt.event();
+                let data = evt.deserialize_json::<T>();
+
+                match data {
+                    Ok(data) => {
+                        // retrigger a new event with the serialized data
+                        commands.trigger_targets(json::JsonResponse(data), entity);
+                    }
+                    Err(e) => {
+                        bevy::log::error!("deserialization error: {e}");
+                        bevy::log::debug!(
+                            "tried serializing: {}",
+                            evt.as_str().unwrap_or("failed getting event data")
+                        );
+                    }
+                }
+            },
+        );
+        self.0.observe(onresponse);
+        self
+    }
+
     /// Provide a system where the first argument is [`Trigger`] [`ReqwestErrorEvent`] that will run on the
     /// response from the http request
     ///
@@ -196,7 +245,7 @@ impl<'w, 's> BevyReqwest<'w, 's> {
     }
 
     fn create_inflight_task(&self, request: reqwest::Request) -> ReqwestInflight {
-        let thread_pool = AsyncComputeTaskPool::get();
+        let thread_pool = IoTaskPool::get();
         // bevy::log::debug!("Creating: {entity:?}");
         // if we take the data, we can use it
         let client = self.client.0.clone();
@@ -229,7 +278,6 @@ impl<'w, 's> BevyReqwest<'w, 's> {
         #[cfg(not(target_family = "wasm"))]
         let task = {
             thread_pool.spawn(async move {
-                #[cfg(not(target_family = "wasm"))]
                 let task_res = async_compat::Compat::new(async {
                     let p = client.execute(request).await;
                     match p {
@@ -389,6 +437,14 @@ impl ReqwestResponseEvent {
     pub fn response_headers(&self) -> &HeaderMap {
         &self.headers
     }
+}
+
+#[cfg(feature = "json")]
+pub mod json {
+    use bevy::prelude::Event;
+    use serde::Deserialize;
+    #[derive(Deserialize, Event)]
+    pub struct JsonResponse<T>(pub T);
 }
 
 impl ReqwestResponseEvent {
