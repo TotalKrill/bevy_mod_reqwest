@@ -27,7 +27,7 @@ bytes          = "1.6.0"
 futures-lite   = "2.3.0"
 
 [dependencies.bevy]
-version = "0.15.0-rc.2"
+version = "0.15"
 # git = "https://github.com/bevyengine/bevy"
 default-features = false
 
