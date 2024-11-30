@@ -3,13 +3,16 @@ use std::ops::{Deref, DerefMut};
 use bevy::{
     ecs::system::{EntityCommands, IntoObserverSystem, SystemParam},
     prelude::*,
-    tasks::AsyncComputeTaskPool,
+    tasks::IoTaskPool,
 };
 
 pub use reqwest;
 
 #[cfg(target_family = "wasm")]
 use crossbeam_channel::{bounded, Receiver};
+
+#[cfg(feature = "json")]
+pub use json::*;
 
 pub use reqwest::header::HeaderMap;
 pub use reqwest::{StatusCode, Version};
@@ -29,7 +32,7 @@ pub struct ReqwestSet;
 /// Supports both wasm and native.
 pub struct ReqwestPlugin {
     /// this enables the plugin to insert a new [`Name`] component onto the entity used to drive
-    /// the http request to completion, if no Name component already exists
+    /// the http request to completion, if no such component already exists
     pub automatically_name_requests: bool,
 }
 impl Default for ReqwestPlugin {
@@ -61,7 +64,8 @@ impl Plugin for ReqwestPlugin {
         app.add_systems(
             PreUpdate,
             (
-                // These systems are chained as the callbacks are triggered in PreUpdate
+                // These systems are chained, since the poll_inflight_requests will trigger the callback and mark the entity for deletion
+
                 // So if remove_finished_requests runs after poll_inflight_requests_to_bytes
                 // the entity will be removed before the callback is triggered.
                 Self::remove_finished_requests,
@@ -75,7 +79,7 @@ impl Plugin for ReqwestPlugin {
 
 //TODO: Make type generic, and we can create systems for JSON and TEXT requests
 impl ReqwestPlugin {
-    /// despawns finished reqwests if marked to be despawned
+    /// despawns finished reqwests if marked to be despawned and does not contain 'ReqwestInflight' component
     fn remove_finished_requests(
         mut commands: Commands,
         q: Query<Entity, (With<DespawnReqwestEntity>, Without<ReqwestInflight>)>,
@@ -87,6 +91,7 @@ impl ReqwestPlugin {
         }
     }
 
+    /// Polls any requests in flight to completion, and then removes the 'ReqwestInflight' component.
     fn poll_inflight_requests_to_bytes(
         mut commands: Commands,
         mut requests: Query<(Entity, &mut ReqwestInflight)>,
@@ -136,6 +141,53 @@ impl<'a> BevyReqwestBuilder<'a> {
         &mut self,
         onresponse: OR,
     ) -> &mut Self {
+        self.0.observe(onresponse);
+        self
+    }
+
+    /// Provide a system where the first argument is [`Trigger`] [`JsonResponse`] that will run on the
+    /// response from the http request, skipping some boilerplate of having to manually doing the JSON
+    /// parsing
+    ///
+    /// # Examples
+    /// ```
+    /// use bevy::prelude::Trigger;
+    /// use bevy_mod_reqwest::JsonResponse;
+    /// |trigger: Trigger<JsonResponse<T>>|  {
+    ///   bevy::log::info!("response: {:?}", trigger.event());
+    /// };
+    /// ```
+    #[cfg(feature = "json")]
+    pub fn on_json_response<
+        T: std::marker::Sync + std::marker::Send + serde::de::DeserializeOwned + 'static,
+        RB: Bundle,
+        RM,
+        OR: IntoObserverSystem<json::JsonResponse<T>, RB, RM>,
+    >(
+        &mut self,
+        onresponse: OR,
+    ) -> &mut Self {
+        self.0.observe(
+            |evt: Trigger<ReqwestResponseEvent>, mut commands: Commands| {
+                let entity = evt.entity();
+                let evt = evt.event();
+                let data = evt.deserialize_json::<T>();
+
+                match data {
+                    Ok(data) => {
+                        // retrigger a new event with the serialized data
+                        commands.trigger_targets(json::JsonResponse(data), entity);
+                    }
+                    Err(e) => {
+                        bevy::log::error!("deserialization error: {e}");
+                        bevy::log::debug!(
+                            "tried serializing: {}",
+                            evt.as_str().unwrap_or("failed getting event data")
+                        );
+                    }
+                }
+            },
+        );
         self.0.observe(onresponse);
         self
     }
@@ -196,7 +248,7 @@ impl<'w, 's> BevyReqwest<'w, 's> {
     }
 
     fn create_inflight_task(&self, request: reqwest::Request) -> ReqwestInflight {
-        let thread_pool = AsyncComputeTaskPool::get();
+        let thread_pool = IoTaskPool::get();
         // bevy::log::debug!("Creating: {entity:?}");
         // if we take the data, we can use it
         let client = self.client.0.clone();
@@ -229,7 +281,6 @@ impl<'w, 's> BevyReqwest<'w, 's> {
         #[cfg(not(target_family = "wasm"))]
         let task = {
             thread_pool.spawn(async move {
-                #[cfg(not(target_family = "wasm"))]
                 let task_res = async_compat::Compat::new(async {
                     let p = client.execute(request).await;
                     match p {
@@ -289,12 +340,13 @@ impl DerefMut for ReqwestClient {
 
 type Resp = (reqwest::Result<bytes::Bytes>, Option<Parts>);
 
-/// Dont touch these, its just to poll once every request
+/// Dont touch these, its just to poll once every request, can be used to detect if there is an active request on the entity
+/// but should otherwise NOT be added/removed/changed by a user of this Crate
 #[derive(Component)]
 #[component(storage = "SparseSet")]
-struct ReqwestInflight {
+pub struct ReqwestInflight {
     // the url this request is handling as a string
-    pub url: String,
+    pub(crate) url: String,
     #[cfg(not(target_family = "wasm"))]
     res: Task<Resp>,
 
@@ -389,6 +441,14 @@ impl ReqwestResponseEvent {
     pub fn response_headers(&self) -> &HeaderMap {
         &self.headers
     }
+}
+
+#[cfg(feature = "json")]
+pub mod json {
+    use bevy::prelude::Event;
+    use serde::Deserialize;
+    #[derive(Deserialize, Event)]
+    pub struct JsonResponse<T>(pub T);
 }
 
 impl ReqwestResponseEvent {

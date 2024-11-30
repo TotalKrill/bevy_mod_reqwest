@@ -1,7 +1,7 @@
 [package]
 name        = "bevy_mod_reqwest"
 description = "Bevy http client using reqwest, with a focus on simple usage within the bevy runtime"
-version     = "0.17.0"
+version     = "0.18.0"
 edition     = "2021"
 readme      = "README.md"
 authors     = ["Kristoffer Ödmark <kristoffer.odmark90@gmail.com>"]
@@ -27,11 +27,9 @@ bytes          = "1.6.0"
 futures-lite   = "2.3.0"
 
 [dependencies.bevy]
-version = "0.14.0"
+version = "0.15"
+# git = "https://github.com/bevyengine/bevy"
 default-features = false
-features = [
-  "multi_threaded",
-]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 crossbeam-channel = "0.5.7"
