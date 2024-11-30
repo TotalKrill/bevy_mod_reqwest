@@ -5,10 +5,10 @@ use bevy_mod_reqwest::*;
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
-struct Bored {
-    activity: String,
-    price: f32,
-    participants: f32,
+pub struct Bored {
+    pub activity: String,
+    pub price: f32,
+    pub participants: f32,
 }
 
 fn send_requests(mut client: BevyReqwest) {
