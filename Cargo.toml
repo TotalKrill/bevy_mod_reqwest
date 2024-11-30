@@ -1,7 +1,7 @@
 [package]
 name        = "bevy_mod_reqwest"
 description = "Bevy http client using reqwest, with a focus on simple usage within the bevy runtime"
-version     = "0.17.0"
+version     = "0.18.0"
 edition     = "2021"
 readme      = "README.md"
 authors     = ["Kristoffer Ödmark <kristoffer.odmark90@gmail.com>"]
