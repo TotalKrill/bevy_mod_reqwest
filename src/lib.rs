@@ -138,9 +138,9 @@ impl<'a> BevyReqwestBuilder<'a> {
     /// };
     /// ```
     pub fn on_response<RB: Bundle, RM, OR: IntoObserverSystem<ReqwestResponseEvent, RB, RM>>(
-        &mut self,
+        mut self,
         onresponse: OR,
-    ) -> &mut Self {
+    ) -> Self {
         self.0.observe(onresponse);
         self
     }
@@ -164,9 +164,9 @@ impl<'a> BevyReqwestBuilder<'a> {
         RM,
         OR: IntoObserverSystem<json::JsonResponse<T>, RB, RM>,
     >(
-        &mut self,
+        mut self,
         onresponse: OR,
-    ) -> &mut Self {
+    ) -> Self {
         self.0.observe(
             |evt: Trigger<ReqwestResponseEvent>, mut commands: Commands| {
                 let entity = evt.entity();
@@ -205,9 +205,9 @@ impl<'a> BevyReqwestBuilder<'a> {
     /// };
     /// ```
     pub fn on_error<EB: Bundle, EM, OE: IntoObserverSystem<ReqwestErrorEvent, EB, EM>>(
-        &mut self,
+        mut self,
         onerror: OE,
-    ) -> &mut Self {
+    ) -> Self {
         self.0.observe(onerror);
         self
     }
