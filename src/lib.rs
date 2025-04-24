@@ -50,12 +50,16 @@ impl Plugin for ReqwestPlugin {
             // register a hook on the component to add a name to the entity if it doesnt have one already
             app.world_mut()
                 .register_component_hooks::<ReqwestInflight>()
-                .on_insert(|mut world, entity, _component_id| {
-                    let url = world.get::<ReqwestInflight>(entity).unwrap().url.clone();
+                .on_insert(|mut world, ctx| {
+                    let url = world
+                        .get::<ReqwestInflight>(ctx.entity)
+                        .unwrap()
+                        .url
+                        .clone();
 
-                    if let None = world.get::<Name>(entity) {
+                    if let None = world.get::<Name>(ctx.entity) {
                         let mut commands = world.commands();
-                        let mut entity = commands.get_entity(entity).unwrap();
+                        let mut entity = commands.get_entity(ctx.entity).unwrap();
                         entity.insert(Name::new(format!("http: {url}")));
                     }
                 });
@@ -85,8 +89,8 @@ impl ReqwestPlugin {
         q: Query<Entity, (With<DespawnReqwestEntity>, Without<ReqwestInflight>)>,
     ) {
         for e in q.iter() {
-            if let Some(ec) = commands.get_entity(e) {
-                ec.despawn_recursive();
+            if let Ok(mut ec) = commands.get_entity(e) {
+                ec.despawn();
             }
         }
     }
@@ -113,7 +117,7 @@ impl ReqwestPlugin {
                         commands.trigger_targets(ReqwestErrorEvent(err), entity.clone());
                     }
                 }
-                if let Some(mut ec) = commands.get_entity(entity) {
+                if let Ok(mut ec) = commands.get_entity(entity) {
                     ec.remove::<ReqwestInflight>();
                 }
             }
@@ -169,7 +173,7 @@ impl<'a> BevyReqwestBuilder<'a> {
     ) -> Self {
         self.0.observe(
             |evt: Trigger<ReqwestResponseEvent>, mut commands: Commands| {
-                let entity = evt.entity();
+                let entity = evt.target();
                 let evt = evt.event();
                 let data = evt.deserialize_json::<T>();
 
@@ -234,12 +238,12 @@ impl<'w, 's> BevyReqwest<'w, 's> {
         &mut self,
         entity: Entity,
         req: reqwest::Request,
-    ) -> Option<BevyReqwestBuilder> {
+    ) -> Result<BevyReqwestBuilder, Box<dyn std::error::Error>> {
         let inflight = self.create_inflight_task(req);
         let mut ec = self.commands.get_entity(entity)?;
         info!("inserting request on entity: {:?}", entity);
         ec.insert(inflight);
-        Some(BevyReqwestBuilder(ec))
+        Ok(BevyReqwestBuilder(ec))
     }
 
     /// get access to the underlying ReqwestClient
