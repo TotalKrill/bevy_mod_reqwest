@@ -23,7 +23,7 @@ fn send_requests(mut client: BevyReqwest) {
         // where the only requirement is that the first parameter in the system is the specific Trigger type
         // the rest is the same as a regular system
         .on_response(
-            |trigger: Trigger<ReqwestResponseEvent>, mut history: ResMut<History>| {
+            |trigger: On<ReqwestResponseEvent>, mut history: ResMut<History>| {
                 let response = trigger.event();
                 let data = response.as_str();
                 let status = response.status();
@@ -36,8 +36,8 @@ fn send_requests(mut client: BevyReqwest) {
         )
         // In case of request error, it can be reached using an observersystem as well
         .on_error(
-            |trigger: Trigger<ReqwestErrorEvent>, mut history: ResMut<History>| {
-                let e = &trigger.event().0;
+            |trigger: On<ReqwestErrorEvent>, mut history: ResMut<History>| {
+                let e = &trigger.event().entity;
                 bevy::log::info!("error: {e:?}");
                 history.responses.push(format!("ERROR: {e:?}"));
             },

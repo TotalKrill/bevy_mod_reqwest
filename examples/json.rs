@@ -21,14 +21,14 @@ fn send_requests(mut client: BevyReqwest) {
         // Sends the created http request
         .send(reqwest_request)
         // The response from the http request can be reached using an observersystem
-        .on_json_response(|trigger: Trigger<JsonResponse<Bored>>| {
-            let data: &Bored = &trigger.event().0;
+        .on_json_response(|trigger: On<JsonResponse<Bored>>| {
+            let data: &Bored = &trigger.event().data;
             // let headers = req.response_headers();
             bevy::log::info!("data: {data:?}");
         })
         // In case of request error, it can be reached using an observersystem
-        .on_error(|trigger: Trigger<ReqwestErrorEvent>| {
-            let e = &trigger.event().0;
+        .on_error(|trigger: On<ReqwestErrorEvent>| {
+            let e = &trigger.event().error;
             bevy::log::info!("error: {e:?}");
         });
 }

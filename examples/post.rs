@@ -22,7 +22,7 @@ fn send_requests(mut client: BevyReqwest) {
     let req = client.post(url).json(&body).build().unwrap();
     client
         .send(req)
-        .on_response(|req: Trigger<ReqwestResponseEvent>| {
+        .on_response(|req: On<ReqwestResponseEvent>| {
             let req = req.event();
             let res = req.as_str();
             bevy::log::info!("return data: {res:?}");

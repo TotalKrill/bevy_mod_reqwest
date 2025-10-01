@@ -108,13 +108,15 @@ impl ReqwestPlugin {
                         // if the response is ok, the other values are already gotten, its safe to unwrap
                         let parts = parts.unwrap();
 
-                        commands.trigger_targets(
-                            ReqwestResponseEvent::new(body.clone(), parts.status, parts.headers),
-                            entity.clone(),
-                        );
+                        commands.trigger(ReqwestResponseEvent::new(
+                            entity,
+                            body.clone(),
+                            parts.status,
+                            parts.headers,
+                        ));
                     }
                     Err(err) => {
-                        commands.trigger_targets(ReqwestErrorEvent(err), entity.clone());
+                        commands.trigger(ReqwestErrorEvent { entity, error: err });
                     }
                 }
                 if let Ok(mut ec) = commands.get_entity(entity) {
@@ -171,16 +173,16 @@ impl<'a> BevyReqwestBuilder<'a> {
         mut self,
         onresponse: OR,
     ) -> Self {
-        self.0.observe(
-            |evt: Trigger<ReqwestResponseEvent>, mut commands: Commands| {
-                let entity = evt.target();
+        self.0
+            .observe(|evt: On<ReqwestResponseEvent>, mut commands: Commands| {
+                let entity = evt.event().entity;
                 let evt = evt.event();
                 let data = evt.deserialize_json::<T>();
 
                 match data {
                     Ok(data) => {
                         // retrigger a new event with the serialized data
-                        commands.trigger_targets(json::JsonResponse(data), entity);
+                        commands.trigger(json::JsonResponse { entity, data });
                     }
                     Err(e) => {
                         bevy::log::error!("deserialization error: {e}");
@@ -190,8 +192,7 @@ impl<'a> BevyReqwestBuilder<'a> {
                         );
                     }
                 }
-            },
-        );
+            });
         self.0.observe(onresponse);
         self
     }
@@ -396,16 +397,20 @@ struct Parts {
     pub(crate) headers: HeaderMap,
 }
 
-#[derive(Clone, Event, Debug)]
+#[derive(Clone, EntityEvent, Debug)]
 /// the resulting data from a finished request is found here
 pub struct ReqwestResponseEvent {
+    entity: Entity,
     bytes: bytes::Bytes,
     status: StatusCode,
     headers: HeaderMap,
 }
 
-#[derive(Event, Debug)]
-pub struct ReqwestErrorEvent(pub reqwest::Error);
+#[derive(EntityEvent, Debug)]
+pub struct ReqwestErrorEvent {
+    pub entity: Entity,
+    pub error: reqwest::Error,
+}
 
 impl ReqwestResponseEvent {
     /// retrieve a reference to the body of the response
@@ -449,15 +454,23 @@ impl ReqwestResponseEvent {
 
 #[cfg(feature = "json")]
 pub mod json {
-    use bevy::prelude::Event;
-    use serde::Deserialize;
-    #[derive(Deserialize, Event)]
-    pub struct JsonResponse<T>(pub T);
+    use bevy::{ecs::entity::Entity, prelude::EntityEvent};
+    #[derive(EntityEvent)]
+    pub struct JsonResponse<T> {
+        pub entity: Entity,
+        pub data: T,
+    }
 }
 
 impl ReqwestResponseEvent {
-    pub(crate) fn new(bytes: bytes::Bytes, status: StatusCode, headers: HeaderMap) -> Self {
+    pub(crate) fn new(
+        entity: Entity,
+        bytes: bytes::Bytes,
+        status: StatusCode,
+        headers: HeaderMap,
+    ) -> Self {
         Self {
+            entity,
             bytes,
             status,
             headers,

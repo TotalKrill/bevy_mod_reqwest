@@ -8,6 +8,7 @@ This crate helps when trying to use reqwest with bevy, without having to deal wi
 
 | Bevy version | bevy_mod_reqwest version |
 | ------------ | ------------------------ |
+| 0.17         | 0.20                     |
 | 0.16         | 0.19                     |
 | 0.15         | 0.18                     |
 | 0.14         | 0.15 - 0.17              |
