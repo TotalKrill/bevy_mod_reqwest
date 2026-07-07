@@ -368,7 +368,7 @@ impl ReqwestInflight {
 
         #[cfg(not(target_family = "wasm"))]
         {
-            future::block_on(future::poll_once(&mut self.res)).map(|v| v)
+            future::block_on(future::poll_once(&mut self.res))
         }
     }
 

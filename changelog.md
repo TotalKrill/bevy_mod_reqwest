@@ -1,4 +1,5 @@
 # Unreleased
+ - Support bevy 0.19
 
 # 0.18
  - Support bevy 0.15
