@@ -10,8 +10,13 @@ struct History {
     pub responses: Vec<String>,
 }
 
+const BASE_URL: &str = match option_env!("BEVY_MOD_REQWEST_EXAMPLE_BASE_URL") {
+    Some(url) => url,
+    None => "http://127.0.0.1:8090",
+};
+
 fn send_requests(mut client: BevyReqwest) {
-    let url = "https://bored-api.appbrewery.com/random";
+    let url = format!("{BASE_URL}/random");
 
     // use regular reqwest http calls, then poll them to completion.
     let reqwest_request = client.get(url).build().unwrap();

@@ -4,7 +4,7 @@ use bevy::{log::LogPlugin, prelude::*, time::common_conditions::on_timer};
 use bevy_mod_reqwest::*;
 use serde::Serialize;
 
-// example towards jsonplaceholder.typicod.com/posts
+// example towards the local CORS test server /posts endpoint
 #[derive(Serialize)]
 struct Post {
     title: String,
@@ -12,8 +12,13 @@ struct Post {
     user_id: usize,
 }
 
+const BASE_URL: &str = match option_env!("BEVY_MOD_REQWEST_EXAMPLE_BASE_URL") {
+    Some(url) => url,
+    None => "http://127.0.0.1:8090",
+};
+
 fn send_requests(mut client: BevyReqwest) {
-    let url = "https://jsonplaceholder.typicode.com/posts";
+    let url = format!("{BASE_URL}/posts");
     let body = Post {
         title: "hello".into(),
         body: "world".into(),

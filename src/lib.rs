@@ -1,7 +1,13 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    ops::{Deref, DerefMut},
+    sync::Mutex,
+};
 
 use bevy::{
-    ecs::system::{EntityCommands, IntoObserverSystem, SystemParam},
+    ecs::{
+        system::{Commands, IntoObserverSystem, SystemParam},
+        world::{EntityWorldMut, World},
+    },
     prelude::*,
     tasks::IoTaskPool,
 };
@@ -44,7 +50,8 @@ impl Default for ReqwestPlugin {
 }
 impl Plugin for ReqwestPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ReqwestClient>();
+        app.init_resource::<ReqwestClient>()
+            .init_resource::<PendingReqwestEntityCommands>();
 
         if self.automatically_name_requests {
             // register a hook on the component to add a name to the entity if it doesnt have one already
@@ -77,12 +84,32 @@ impl Plugin for ReqwestPlugin {
             )
                 .chain()
                 .in_set(ReqwestSet),
-        );
+        )
+        .add_systems(PostUpdate, Self::apply_pending_entity_commands);
     }
 }
 
 //TODO: Make type generic, and we can create systems for JSON and TEXT requests
 impl ReqwestPlugin {
+    fn apply_pending_entity_commands(world: &mut World) {
+        let Some(mut pending) = world.remove_resource::<PendingReqwestEntityCommands>() else {
+            return;
+        };
+
+        let mut still_pending = Vec::new();
+        for mut command in std::mem::take(pending.0.get_mut().unwrap()) {
+            if let Ok(mut entity) = world.get_entity_mut(command.entity) {
+                if let Some(action) = command.action.take() {
+                    action(&mut entity);
+                }
+            } else {
+                still_pending.push(command);
+            }
+        }
+
+        world.insert_resource(PendingReqwestEntityCommands(Mutex::new(still_pending)));
+    }
+
     /// despawns finished reqwests if marked to be despawned and does not contain 'ReqwestInflight' component
     fn remove_finished_requests(
         mut commands: Commands,
@@ -127,8 +154,39 @@ impl ReqwestPlugin {
     }
 }
 
-/// Wrapper around EntityCommands to create the on_response and on_error
-pub struct BevyReqwestBuilder<'a>(EntityCommands<'a>);
+/// Wrapper around Commands to create the on_response and on_error
+pub struct BevyReqwestBuilder<'a> {
+    entity: Entity,
+    commands: Commands<'a, 'a>,
+}
+
+type PendingEntityAction = Box<dyn FnOnce(&mut EntityWorldMut) + Send + 'static>;
+
+#[derive(Resource, Default)]
+struct PendingReqwestEntityCommands(Mutex<Vec<PendingReqwestEntityCommand>>);
+
+struct PendingReqwestEntityCommand {
+    entity: Entity,
+    action: Option<PendingEntityAction>,
+}
+
+fn queue_when_entity_exists(
+    commands: &mut Commands,
+    entity: Entity,
+    f: impl FnOnce(&mut EntityWorldMut) + Send + 'static,
+) {
+    commands.queue(move |world: &mut World| {
+        world
+            .get_resource_or_insert_with(PendingReqwestEntityCommands::default)
+            .0
+            .lock()
+            .unwrap()
+            .push(PendingReqwestEntityCommand {
+                entity,
+                action: Some(Box::new(f)),
+            });
+    });
+}
 
 impl<'a> BevyReqwestBuilder<'a> {
     /// Provide a system where the first argument is [`Trigger`] [`ReqwestResponseEvent`] that will run on the
@@ -137,9 +195,9 @@ impl<'a> BevyReqwestBuilder<'a> {
     /// # Examples
     ///
     /// ```
-    /// use bevy::prelude::Trigger;
+    /// use bevy::prelude::On;
     /// use bevy_mod_reqwest::ReqwestResponseEvent;
-    /// |trigger: Trigger<ReqwestResponseEvent>|  {
+    /// |trigger: On<ReqwestResponseEvent>|  {
     ///   bevy::log::info!("response: {:?}", trigger.event());
     /// };
     /// ```
@@ -147,7 +205,9 @@ impl<'a> BevyReqwestBuilder<'a> {
         mut self,
         onresponse: OR,
     ) -> Self {
-        self.0.observe(onresponse);
+        queue_when_entity_exists(&mut self.commands, self.entity, |entity| {
+            entity.observe(onresponse);
+        });
         self
     }
 
@@ -157,10 +217,13 @@ impl<'a> BevyReqwestBuilder<'a> {
     ///
     /// # Examples
     /// ```
-    /// use bevy::prelude::Trigger;
+    /// use bevy::prelude::On;
     /// use bevy_mod_reqwest::JsonResponse;
-    /// |trigger: Trigger<JsonResponse<T>>|  {
-    ///   bevy::log::info!("response: {:?}", trigger.event());
+    /// use serde::Deserialize;
+    /// #[derive(Deserialize, Debug)]
+    /// struct MyResponse;
+    /// |trigger: On<JsonResponse<MyResponse>>|  {
+    ///   bevy::log::info!("response: {:?}", trigger.event().data);
     /// };
     /// ```
     #[cfg(feature = "json")]
@@ -173,8 +236,8 @@ impl<'a> BevyReqwestBuilder<'a> {
         mut self,
         onresponse: OR,
     ) -> Self {
-        self.0
-            .observe(|evt: On<ReqwestResponseEvent>, mut commands: Commands| {
+        queue_when_entity_exists(&mut self.commands, self.entity, |entity| {
+            entity.observe(|evt: On<ReqwestResponseEvent>, mut commands: Commands| {
                 let entity = evt.event().entity;
                 let evt = evt.event();
                 let data = evt.deserialize_json::<T>();
@@ -193,7 +256,10 @@ impl<'a> BevyReqwestBuilder<'a> {
                     }
                 }
             });
-        self.0.observe(onresponse);
+        });
+        queue_when_entity_exists(&mut self.commands, self.entity, |entity| {
+            entity.observe(onresponse);
+        });
         self
     }
 
@@ -203,9 +269,9 @@ impl<'a> BevyReqwestBuilder<'a> {
     /// # Examples
     ///
     /// ```
-    /// use bevy::prelude::Trigger;
+    /// use bevy::prelude::On;
     /// use bevy_mod_reqwest::ReqwestErrorEvent;
-    /// |trigger: Trigger<ReqwestErrorEvent>|  {
+    /// |trigger: On<ReqwestErrorEvent>|  {
     ///   bevy::log::info!("response: {:?}", trigger.event());
     /// };
     /// ```
@@ -213,7 +279,9 @@ impl<'a> BevyReqwestBuilder<'a> {
         mut self,
         onerror: OE,
     ) -> Self {
-        self.0.observe(onerror);
+        queue_when_entity_exists(&mut self.commands, self.entity, |entity| {
+            entity.observe(onerror);
+        });
         self
     }
 }
@@ -230,7 +298,11 @@ impl<'w, 's> BevyReqwest<'w, 's> {
     /// then use the [`BevyReqwestBuilder`] to add handlers for responses and errors
     pub fn send(&mut self, req: reqwest::Request) -> BevyReqwestBuilder<'_> {
         let inflight = self.create_inflight_task(req);
-        BevyReqwestBuilder(self.commands.spawn((inflight, DespawnReqwestEntity)))
+        let entity = self.commands.spawn((inflight, DespawnReqwestEntity)).id();
+        BevyReqwestBuilder {
+            entity,
+            commands: self.commands.reborrow(),
+        }
     }
 
     /// Starts sending and processing the supplied [`reqwest::Request`] on the supplied [`Entity`] if it exists
@@ -241,10 +313,15 @@ impl<'w, 's> BevyReqwest<'w, 's> {
         req: reqwest::Request,
     ) -> Result<BevyReqwestBuilder<'_>, Box<dyn std::error::Error>> {
         let inflight = self.create_inflight_task(req);
-        let mut ec = self.commands.get_entity(entity)?;
+        self.commands.get_entity(entity)?;
         info!("inserting request on entity: {:?}", entity);
-        ec.insert(inflight);
-        Ok(BevyReqwestBuilder(ec))
+        queue_when_entity_exists(&mut self.commands, entity, |entity| {
+            entity.insert(inflight);
+        });
+        Ok(BevyReqwestBuilder {
+            entity,
+            commands: self.commands.reborrow(),
+        })
     }
 
     /// get access to the underlying ReqwestClient
@@ -283,7 +360,7 @@ impl<'w, 's> BevyReqwest<'w, 's> {
         };
 
         // otherwise
-        #[cfg(not(target_family = "wasm"))]
+        #[cfg(all(not(test), not(target_family = "wasm")))]
         let task = {
             thread_pool.spawn(async move {
                 let task_res = async_compat::Compat::new(async {
@@ -302,6 +379,13 @@ impl<'w, 's> BevyReqwest<'w, 's> {
                 .await;
                 task_res
             })
+        };
+
+        #[cfg(all(test, not(target_family = "wasm")))]
+        let task = {
+            let _ = request;
+            let _ = client;
+            thread_pool.spawn(async { future::pending::<Resp>().await })
         };
         // put it as a component to be polled, and remove the request, it has been handled
         ReqwestInflight::new(task, url)
@@ -471,5 +555,61 @@ impl ReqwestResponseEvent {
             status,
             headers,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn app_with_send_system<M>(system: impl IntoSystem<(), (), M> + 'static) -> App {
+        let mut app = App::new();
+        app.add_plugins((TaskPoolPlugin::default(), ReqwestPlugin::default()))
+            .add_systems(Update, system);
+        app
+    }
+
+    fn build_request(client: &BevyReqwest) -> reqwest::Request {
+        client.get("http://127.0.0.1:9/").build().unwrap()
+    }
+
+    fn send_with_bevy_reqwest_before_commands(mut client: BevyReqwest, mut commands: Commands) {
+        let entity = commands.spawn(DespawnReqwestEntity).id();
+        let request = build_request(&client);
+
+        client.send_using_entity(entity, request).unwrap();
+    }
+
+    fn send_with_commands_before_bevy_reqwest(mut commands: Commands, mut client: BevyReqwest) {
+        let entity = commands.spawn(DespawnReqwestEntity).id();
+        let request = build_request(&client);
+
+        client.send_using_entity(entity, request).unwrap();
+    }
+
+    #[test]
+    fn sending_on_an_entity_spawned_by_commands_does_not_depend_on_parameter_order() {
+        let mut app = app_with_send_system(send_with_bevy_reqwest_before_commands);
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| app.update()));
+        std::mem::forget(app);
+
+        assert!(
+            result.is_ok(),
+            "sending a request using an entity spawned via Commands should not depend on system parameter order"
+        );
+    }
+
+    #[test]
+    fn sending_on_an_entity_spawned_by_commands_does_not_panic_when_commands_param_is_first() {
+        let mut app = app_with_send_system(send_with_commands_before_bevy_reqwest);
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| app.update()));
+        std::mem::forget(app);
+
+        assert!(
+            result.is_ok(),
+            "Commands first is the currently working ordering and should not panic"
+        );
     }
 }
