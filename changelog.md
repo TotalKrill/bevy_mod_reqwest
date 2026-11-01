@@ -1,4 +1,6 @@
 # Unreleased
+ - Support bevy 0.20
+ - `on_response`, `on_json_response` and `on_error` drop the `Bundle` generic parameter, matching Bevy 0.20's `IntoObserverSystem<E, M>`
 
 # 0.22.1
  - Fix parameter-order-dependent crash when using `BevyReqwest::send_using_entity` with entities spawned via `Commands`
